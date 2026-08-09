@@ -20,7 +20,7 @@ on:
 
 env:
   # Keep this in sync with build.ps1/build.sh and README §3-4.
-  NDK_VERSION: r25c
+  NDK_VERSION: r27d
   MOD_OUTPUT_NAME: YouTubeLiveChat
 
 jobs:
