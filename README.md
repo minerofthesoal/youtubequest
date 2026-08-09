@@ -79,14 +79,31 @@ Resolved via `qpm restore` (see `qpm.json`):
 
 | Package | Why |
 |---|---|
-| `beatsaber-hook` | IL2CPP function hooking + coroutine/utility layer |
+| `beatsaber-hook` | IL2CPP function hooking + coroutine/utility layer. Also the source of RapidJSON — it bundles it and exposes it through its `sharedDir`, so `#include "rapidjson/document.h"` just works once this restores; there's no separate RapidJSON QPM dependency |
 | `custom-types` | Lets us define new IL2CPP-visible C++ classes (MonoBehaviours, ViewControllers) |
 | `bs-cordl` | Auto-generated headers for Beat Saber's own types, **pinned to your exact build** |
 | `bsml` | RedBrumbler's Quest-BSML port, for the settings menu |
 | `paper2_scotland2` | Logging shim for the Scotland2 modloader |
-| RapidJSON (header-only) | Parsing YouTube API responses |
 
-Toolchain: `qpm-rust`, CMake ≥ 3.22, Ninja, Android NDK r25c.
+Toolchain: `qpm-rust`/QPM.CLI, CMake ≥ 3.22, Ninja, Android NDK r25c.
+
+### Committing the lockfile
+
+`qpm.shared.json` is QPM's lockfile (same idea as `Cargo.lock` or
+`package-lock.json`) — **it must be committed**, not gitignored. This repo's
+`.gitignore` no longer excludes it (an earlier version of this project
+incorrectly did). The first time you touch `qpm.json`'s dependencies, run:
+
+```
+qpm restore
+git add qpm.shared.json
+git commit -m "Lock qpm dependencies"
+```
+
+Without a committed lockfile, QPM.CLI falls back to an unlocked resolve and
+prints `"Running in CI and using unlocked resolve, this seems like a bug!"`
+in Actions — that warning is QPM telling you exactly this, not a bug in the
+workflow itself.
 
 ### Verifying codegen against your exact build
 
@@ -253,6 +270,24 @@ There is no push/streaming endpoint for YouTube live chat in the public API
 
 ---
 
+## 11. Continuous integration
+
+`.github/workflows/build.yml` builds the `.qmod` on every push/PR to `main`
+(and on manual dispatch), using `nttld/setup-ndk` + `seanmiddleditch/gha-setup-ninja`
++ QPM.CLI — the same toolchain as the local `build.sh`/`build.ps1` scripts, so
+CI and local builds can't silently drift apart. Every run uploads the built
+`.qmod`/`.so` as a workflow artifact.
+
+Push a tag like `v0.1.0` and it additionally cuts a GitHub Release with the
+`.qmod` attached — handy for `qpm.json`'s `workspace.domain` field, which
+points at `releases/latest/download/`, and for `mod.json`'s
+`downloadIfMissing` URLs on your own future releases if this ever becomes a
+dependency of another mod.
+
+The QPM.CLI download step pulls the latest release asset by name pattern
+(`grep -i linux`) rather than a pinned URL — reasonable for now, but check
+the **Known limitations** note below if it ever starts failing.
+
 ## Known limitations / honesty notes
 
 - This has **not** been compiled against real `bs-cordl` 1.40.8 headers in
@@ -268,3 +303,14 @@ There is no push/streaming endpoint for YouTube live chat in the public API
   (only metadata like the amount/tier) — the sticker event renders as a
   labeled Super Chat–style row rather than the actual sticker artwork.
 - Emoji badge glyphs depend on the active TMP font's glyph coverage (§8).
+- The CI workflow's QPM.CLI install step resolves the latest Linux release
+  asset by a name-pattern match rather than a version-pinned URL (see §11)
+  — quick to fix if QuestPackageManager/QPM.CLI ever renames their release
+  assets, but worth knowing if a build suddenly fails on that step.
+- `qpm.shared.json` (the dependency lockfile) isn't included here and can't
+  be generated in the environment that produced this project — it requires
+  a real `qpm` binary with network access to the QPM package registry. Run
+  `qpm restore` locally once and commit the resulting `qpm.shared.json`
+  before your first CI build (see §3, "Committing the lockfile") — until
+  then, every `qpm restore` (local or CI) does a slower unlocked resolve
+  and CI will print a warning about it.

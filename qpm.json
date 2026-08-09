@@ -25,7 +25,9 @@
     {
       "id": "beatsaber-hook",
       "versionRange": "^6.0.0",
-      "additionalData": {}
+      "additionalData": {
+        "comment": "Also the source of RapidJSON: beatsaber-hook bundles it directly (see its own 'Bump rapidjson' release history) and exposes it through its sharedDir, so `#include \"rapidjson/document.h\"` etc. resolve once this restores -- no separate rapidjson QPM dependency needed or, as of this fix, listed here (an earlier draft of this file had a fabricated 'rapidjson-questui' entry that doesn't exist in the registry; removed)."
+      }
     },
     {
       "id": "custom-types",
@@ -59,13 +61,6 @@
       "versionRange": "^0.1.0",
       "additionalData": {
         "private": true
-      }
-    },
-    {
-      "id": "rapidjson-questui",
-      "versionRange": "^1.0.0",
-      "additionalData": {
-        "comment": "Header-only RapidJSON, used to parse YouTube Data API responses. Any header-only RapidJSON QPM package works; swap the id for whichever mirror is current in the QPM registry."
       }
     }
   ]
