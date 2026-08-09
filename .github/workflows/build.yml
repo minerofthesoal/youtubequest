@@ -59,9 +59,36 @@ jobs:
             exit 1
           fi
           echo "Downloading $asset_url"
-          curl -sSL "$asset_url" -o qpm
-          chmod +x qpm
-          sudo mv qpm /usr/local/bin/qpm
+          tmpdir=$(mktemp -d)
+          curl -sSL "$asset_url" -o "$tmpdir/qpm-download"
+
+          # The release asset is a .zip (e.g. qpm-linux-x64.zip), not a raw
+          # binary -- unzip it and locate the actual executable inside,
+          # since the archive's internal layout isn't guaranteed to be flat.
+          case "$asset_url" in
+            *.zip)
+              unzip -q "$tmpdir/qpm-download" -d "$tmpdir/extracted"
+              ;;
+            *.tar.gz|*.tgz)
+              mkdir -p "$tmpdir/extracted"
+              tar -xzf "$tmpdir/qpm-download" -C "$tmpdir/extracted"
+              ;;
+            *)
+              # Not archived after all -- treat the download itself as the binary.
+              mkdir -p "$tmpdir/extracted"
+              cp "$tmpdir/qpm-download" "$tmpdir/extracted/qpm"
+              ;;
+          esac
+
+          qpm_bin=$(find "$tmpdir/extracted" -type f -iname "qpm*" | head -n1)
+          if [ -z "$qpm_bin" ]; then
+            echo "::error::Couldn't locate the qpm binary inside the downloaded archive. Contents:"
+            find "$tmpdir/extracted" -type f
+            exit 1
+          fi
+
+          chmod +x "$qpm_bin"
+          sudo mv "$qpm_bin" /usr/local/bin/qpm
           qpm --version
 
       - name: Cache QPM dependencies
