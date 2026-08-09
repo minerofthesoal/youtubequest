@@ -85,7 +85,9 @@ Resolved via `qpm restore` (see `qpm.json`):
 | `bsml` | RedBrumbler's Quest-BSML port, for the settings menu |
 | `paper2_scotland2` | Logging shim for the Scotland2 modloader |
 
-Toolchain: `qpm-rust`/QPM.CLI, CMake ≥ 3.22, Ninja, Android NDK r25c.
+Toolchain: `qpm-rust`/QPM.CLI, CMake ≥ 3.22, Ninja, Android NDK r27 (r27d tested; r25c's
+bundled Clang 14 is too old for beatsaber-hook ^6.0.0's C++20 usage -- see
+`.github/workflows/build.yml` for details).
 
 ### Committing the lockfile
 
@@ -130,7 +132,7 @@ runtime mismatch.
 
 ```powershell
 # Windows
-$env:ANDROID_NDK_HOME = "C:\path\to\ndk\25.2.9519653"
+$env:ANDROID_NDK_HOME = "C:\path\to\ndk\27.3.13750724"
 qpm restore
 ./build.ps1
 ./createqmod.ps1
@@ -138,7 +140,7 @@ qpm restore
 
 ```bash
 # Linux/macOS
-export ANDROID_NDK_HOME=/path/to/ndk/25.2.9519653
+export ANDROID_NDK_HOME=/path/to/ndk/27.3.13750724
 qpm restore
 ./build.sh
 ./createqmod.sh

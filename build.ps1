@@ -1,12 +1,12 @@
 # Build script for YouTube Live Chat (Beat Saber Quest mod)
-# Requires: qpm-rust, CMake >= 3.22, Ninja, Android NDK (r25c recommended)
+# Requires: qpm-rust, CMake >= 3.22, Ninja, Android NDK r27 (r27d tested)
 # Set $env:ANDROID_NDK_HOME before running, or edit $ndk below.
 
 $ErrorActionPreference = "Stop"
 
 $ndk = $env:ANDROID_NDK_HOME
 if (-not $ndk) {
-    Write-Error "ANDROID_NDK_HOME is not set. Install the NDK (r25c) and set this env var first."
+    Write-Error "ANDROID_NDK_HOME is not set. Install the NDK (r27) and set this env var first."
     exit 1
 }
 

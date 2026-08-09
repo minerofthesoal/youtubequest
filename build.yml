@@ -1,0 +1,178 @@
+name: Build QMOD
+
+# Builds on every push/PR that touches source or build config, and lets you
+# trigger it by hand. Pushing a tag like "v0.1.0" additionally creates a
+# GitHub Release with the built .qmod attached (see the `release` job).
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ "v*" ]
+    paths:
+      - "src/**"
+      - "shared/**"
+      - "CMakeLists.txt"
+      - "qpm.json"
+      - "mod.json"
+      - ".github/workflows/build.yml"
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch: {}
+
+env:
+  # Keep this in sync with build.ps1/build.sh and README §3-4.
+  # r27 is current NDK LTS (per BSMG wiki's `qpm ndk pin 27`) and is required
+  # here: beatsaber-hook ^6.0.0's headers use C++20 <ranges> and rely on
+  # libc++'s constexpr std::string support, neither of which r25c's bundled
+  # Clang 14.0.7 has -- that combination fails with "'ranges' file not
+  # found" and "constexpr constructor never produces a constant expression"
+  # deep in compilation, not an obviously NDK-related error.
+  NDK_VERSION: r27d
+  MOD_OUTPUT_NAME: YouTubeLiveChat
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup NDK
+        id: setup-ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: ${{ env.NDK_VERSION }}
+          link-to-sdk: true
+
+      - name: Setup Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v4
+
+      - name: Install QPM (Quest Package Manager)
+        run: |
+          set -euo pipefail
+          # VERIFY: QuestPackageManager/QPM.CLI's released asset naming can
+          # change between releases -- if this step starts failing, check
+          # https://github.com/QuestPackageManager/QPM.CLI/releases for the
+          # current linux x86_64 asset name and adjust the `grep` pattern.
+          api_url="https://api.github.com/repos/QuestPackageManager/QPM.CLI/releases/latest"
+          asset_url=$(curl -sSL "$api_url" \
+            | grep "browser_download_url" \
+            | grep -i "linux" \
+            | grep -vi "musl\|arm" \
+            | head -n1 \
+            | cut -d '"' -f 4)
+          if [ -z "$asset_url" ]; then
+            echo "::error::Could not find a linux QPM.CLI release asset -- check the releases page and update this step's grep pattern."
+            exit 1
+          fi
+          echo "Downloading $asset_url"
+          tmpdir=$(mktemp -d)
+          curl -sSL "$asset_url" -o "$tmpdir/qpm-download"
+
+          # The release asset is a .zip (e.g. qpm-linux-x64.zip), not a raw
+          # binary -- unzip it and locate the actual executable inside,
+          # since the archive's internal layout isn't guaranteed to be flat.
+          case "$asset_url" in
+            *.zip)
+              unzip -q "$tmpdir/qpm-download" -d "$tmpdir/extracted"
+              ;;
+            *.tar.gz|*.tgz)
+              mkdir -p "$tmpdir/extracted"
+              tar -xzf "$tmpdir/qpm-download" -C "$tmpdir/extracted"
+              ;;
+            *)
+              # Not archived after all -- treat the download itself as the binary.
+              mkdir -p "$tmpdir/extracted"
+              cp "$tmpdir/qpm-download" "$tmpdir/extracted/qpm"
+              ;;
+          esac
+
+          qpm_bin=$(find "$tmpdir/extracted" -type f -iname "qpm*" | head -n1)
+          if [ -z "$qpm_bin" ]; then
+            echo "::error::Couldn't locate the qpm binary inside the downloaded archive. Contents:"
+            find "$tmpdir/extracted" -type f
+            exit 1
+          fi
+
+          chmod +x "$qpm_bin"
+          sudo mv "$qpm_bin" /usr/local/bin/qpm
+          qpm --version
+
+      - name: Cache QPM dependencies
+        uses: actions/cache@v4
+        with:
+          # Only cache QPM's own package-download cache (content-addressed,
+          # safe to reuse). Do NOT cache `extern` here: it's restore's
+          # *output*, and letting `restore-keys` fall back to an
+          # older/partial cache entry can hand `qpm restore` a stale
+          # `extern/` it then treats as already-populated, silently
+          # skipping regeneration of extern/extern.cmake. Regenerating
+          # `extern` fresh from this package cache every run is fast and
+          # avoids that failure mode.
+          path: ~/.local/share/QPM
+          key: ${{ runner.os }}-qpm-${{ hashFiles('qpm.json', 'qpm.shared.json') }}
+          restore-keys: |
+            ${{ runner.os }}-qpm-
+
+      - name: qpm restore
+        run: |
+          set -euo pipefail
+          qpm restore
+          # Belt-and-braces: fail loudly here rather than letting a broken
+          # restore surface later as a confusing "header not found" error
+          # deep in compilation. qpm writes these to the repo root, not
+          # into extern/ -- see CMakeLists.txt for why.
+          if [ ! -f extern.cmake ] || [ ! -f qpm_defines.cmake ]; then
+            echo "::error::qpm restore did not produce extern.cmake / qpm_defines.cmake -- dependencies were not restored. Check the qpm restore output above."
+            exit 1
+          fi
+
+      - name: Configure + build
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          cmake -G "Ninja" \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-24 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -B build .
+          cmake --build build -j"$(nproc)"
+
+      - name: Package .qmod
+        run: |
+          set -euo pipefail
+          # CMakeLists.txt's project(youtubelivechat) always produces this
+          # exact .so name -- update both if you ever rename the CMake project.
+          zip -j "${MOD_OUTPUT_NAME}.qmod" mod.json build/libyoutubelivechat.so
+          unzip -l "${MOD_OUTPUT_NAME}.qmod"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.MOD_OUTPUT_NAME }}-${{ github.sha }}
+          path: |
+            ${{ env.MOD_OUTPUT_NAME }}.qmod
+            build/*.so
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.MOD_OUTPUT_NAME }}-${{ github.sha }}
+          path: dist
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/${{ env.MOD_OUTPUT_NAME }}.qmod
+          generate_release_notes: true

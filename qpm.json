@@ -25,8 +25,13 @@
     {
       "id": "beatsaber-hook",
       "versionRange": "^6.0.0",
+      "additionalData": {}
+    },
+    {
+      "id": "rapidjson-macros",
+      "versionRange": "^2.1.0",
       "additionalData": {
-        "comment": "Also the source of RapidJSON: beatsaber-hook bundles it directly (see its own 'Bump rapidjson' release history) and exposes it through its sharedDir, so `#include \"rapidjson/document.h\"` etc. resolve once this restores -- no separate rapidjson QPM dependency needed or, as of this fix, listed here (an earlier draft of this file had a fabricated 'rapidjson-questui' entry that doesn't exist in the registry; removed)."
+        "comment": "beatsaber-hook 6.x does NOT bundle/transitively expose rapidjson (that's only true of the current beatsaber-hook master/7.x+, which is a different major version than the ^6.0.0 range above). Needs its own dependency -- confirmed against NoodleExtensions' qpm.shared.json, which pins the same beatsaber-hook 6.x line and resolves rapidjson-macros 2.1.0."
       }
     },
     {

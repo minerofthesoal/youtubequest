@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Build script for YouTube Live Chat (Beat Saber Quest mod)
-# Requires: qpm-rust, CMake >= 3.22, Ninja, Android NDK (r25c recommended)
+# Requires: qpm-rust, CMake >= 3.22, Ninja, Android NDK r27 (r27d tested)
 set -euo pipefail
 
-: "${ANDROID_NDK_HOME:?Set ANDROID_NDK_HOME to your NDK r25c install first}"
+: "${ANDROID_NDK_HOME:?Set ANDROID_NDK_HOME to your NDK r27 install first}"
 
 echo "Restoring qpm dependencies..."
 qpm restore
