@@ -32,14 +32,19 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 )
 
 # qpm-restored static/shared libs get linked in automatically once you run
-# `qpm restore` -- it drops a qpm_defines.cmake / auto-generated link list
-# into extern/. Keeping this explicit stub here so the project is inspectable
-# without having run qpm yet; delete the placeholder line below once restore
-# has generated the real one.
+# `qpm restore` -- it drops qpm_defines.cmake and extern.cmake into extern/.
+# Both are required: qpm_defines.cmake carries restore-generated compile
+# definitions, extern.cmake carries the include/link setup. Treat either
+# being missing as fatal (not a warning) -- continuing to configure without
+# them just defers the failure to a much more confusing "header not found"
+# error partway through compilation instead of a clear message here.
+if(EXISTS ${CMAKE_SOURCE_DIR}/extern/qpm_defines.cmake)
+    include(${CMAKE_SOURCE_DIR}/extern/qpm_defines.cmake)
+endif()
 if(EXISTS ${CMAKE_SOURCE_DIR}/extern/extern.cmake)
     include(${CMAKE_SOURCE_DIR}/extern/extern.cmake)
 else()
-    message(WARNING "extern/extern.cmake not found yet -- run 'qpm restore' before building.")
+    message(FATAL_ERROR "extern/extern.cmake not found -- run 'qpm restore' before building.")
 endif()
 
 target_link_libraries(${PROJECT_NAME} PRIVATE log)

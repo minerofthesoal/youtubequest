@@ -94,18 +94,30 @@ jobs:
       - name: Cache QPM dependencies
         uses: actions/cache@v4
         with:
-          # Best-effort cache location for restored packages; run
-          # `qpm config cache path` locally to confirm this on your machine
-          # if restores aren't getting any faster.
-          path: |
-            ~/.local/share/QPM
-            extern
+          # Only cache QPM's own package-download cache (content-addressed,
+          # safe to reuse). Do NOT cache `extern` here: it's restore's
+          # *output*, and letting `restore-keys` fall back to an
+          # older/partial cache entry can hand `qpm restore` a stale
+          # `extern/` it then treats as already-populated, silently
+          # skipping regeneration of extern/extern.cmake. Regenerating
+          # `extern` fresh from this package cache every run is fast and
+          # avoids that failure mode.
+          path: ~/.local/share/QPM
           key: ${{ runner.os }}-qpm-${{ hashFiles('qpm.json', 'qpm.shared.json') }}
           restore-keys: |
             ${{ runner.os }}-qpm-
 
       - name: qpm restore
-        run: qpm restore
+        run: |
+          set -euo pipefail
+          qpm restore
+          # Belt-and-braces: fail loudly here rather than letting a broken
+          # restore surface later as a confusing "header not found" error
+          # deep in compilation.
+          if [ ! -f extern/extern.cmake ]; then
+            echo "::error::qpm restore did not produce extern/extern.cmake -- dependencies were not restored. Check the qpm restore output above."
+            exit 1
+          fi
 
       - name: Configure + build
         env:

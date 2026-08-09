@@ -12,6 +12,10 @@ if (-not $ndk) {
 
 Write-Host "Restoring qpm dependencies..."
 qpm restore
+if (-not (Test-Path "extern/extern.cmake")) {
+    Write-Error "qpm restore did not produce extern/extern.cmake -- dependencies were not restored. If you have a stale ./extern from an old checkout, try: Remove-Item -Recurse -Force extern; qpm restore"
+    exit 1
+}
 
 $buildDir = "build"
 if (-not (Test-Path $buildDir)) { New-Item -ItemType Directory -Path $buildDir | Out-Null }

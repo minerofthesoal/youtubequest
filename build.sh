@@ -7,6 +7,11 @@ set -euo pipefail
 
 echo "Restoring qpm dependencies..."
 qpm restore
+if [ ! -f extern/extern.cmake ]; then
+    echo "error: qpm restore did not produce extern/extern.cmake -- dependencies were not restored." >&2
+    echo "If you have a stale ./extern from an old checkout, try: rm -rf extern && qpm restore" >&2
+    exit 1
+fi
 
 mkdir -p build
 cmake -G "Ninja" \
