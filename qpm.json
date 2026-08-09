@@ -1,0 +1,72 @@
+{
+  "version": "0.4.0",
+  "sharedDir": "shared",
+  "dependenciesDir": "extern",
+  "info": {
+    "name": "YouTubeLiveChat",
+    "id": "youtube-live-chat",
+    "version": "0.1.0",
+    "url": null,
+    "additionalData": {
+      "overrideSoName": "libyoutubelivechat.so",
+      "cmake": true
+    }
+  },
+  "workspace": {
+    "scripts": {
+      "build": ["pwsh ./build.ps1"],
+      "qmod": ["pwsh ./createqmod.ps1"]
+    },
+    "qmodIncludeDirs": [],
+    "qmodOutputPath": "./YouTubeLiveChat.qmod",
+    "domain": "https://github.com/YOUR_GITHUB/YouTubeLiveChat/releases/latest/download/"
+  },
+  "dependencies": [
+    {
+      "id": "beatsaber-hook",
+      "versionRange": "^6.0.0",
+      "additionalData": {}
+    },
+    {
+      "id": "custom-types",
+      "versionRange": "^0.18.0",
+      "additionalData": {}
+    },
+    {
+      "id": "bs-cordl",
+      "versionRange": "*",
+      "additionalData": {
+        "private": false,
+        "comment": "IMPORTANT: run `qpm dependency add bs-cordl -v <version-for-1.40.8>` and let qpm resolve the exact codegen version that matches Beat Saber 1.40.8_7379 for your headset. Codegen versions are minted per game build and must not be hand-guessed -- see README 'Verifying codegen against your exact build'."
+      }
+    },
+    {
+      "id": "bsml",
+      "versionRange": "^0.4.0",
+      "additionalData": {
+        "comment": "RedBrumbler's Quest-BSML port (github.com/RedBrumbler/Quest-BSML). Pin to whatever release lists Beat Saber 1.40.x support on the mods.bsquest.xyz page for your build."
+      }
+    },
+    {
+      "id": "paper2_scotland2",
+      "versionRange": "^4.0.0",
+      "additionalData": {
+        "comment": "Logging shim for the Scotland2 modloader."
+      }
+    },
+    {
+      "id": "scotland2",
+      "versionRange": "^0.1.0",
+      "additionalData": {
+        "private": true
+      }
+    },
+    {
+      "id": "rapidjson-questui",
+      "versionRange": "^1.0.0",
+      "additionalData": {
+        "comment": "Header-only RapidJSON, used to parse YouTube Data API responses. Any header-only RapidJSON QPM package works; swap the id for whichever mirror is current in the QPM registry."
+      }
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+build/
+extern/
+qpm.shared.json
+*.qmod
+.vs/
+.vscode/
