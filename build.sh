@@ -5,9 +5,6 @@ set -euo pipefail
 
 : "${ANDROID_NDK_HOME:?Set ANDROID_NDK_HOME to your NDK r27 install first}"
 
-echo "Fetching submodules (extern-vendor/rapidjson)..."
-git submodule update --init --recursive
-
 echo "Restoring qpm dependencies..."
 qpm restore
 if [ ! -f extern.cmake ] || [ ! -f qpm_defines.cmake ]; then

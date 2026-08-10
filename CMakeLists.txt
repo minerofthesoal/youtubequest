@@ -38,19 +38,20 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/extern/includes
 )
 
-# RapidJSON is vendored directly as a git submodule at extern-vendor/rapidjson,
-# pinned to the exact commit beatsaber-hook 6.4.2 itself uses for its own
-# bundled copy (see .gitmodules) -- NOT restored via qpm. The qpm registry
-# package for this (rapidjson-macros) was tried first but its restore
-# silently produces an empty directory (confirmed via a CI debug step
-# listing the actual restored tree: extern/includes/rapidjson-macros/shared
-# exists but is empty, and its clone log shows no submodule/content
-# activity at all, unlike every other dependency here) -- it appears to be
-# stale or broken upstream, and that's not something fixable from this
-# project's side. Requires `git submodule update --init --recursive` (the
-# CI checkout step and this repo's build scripts do this automatically).
+# RapidJSON is vendored directly as plain committed header files at
+# extern-vendor/rapidjson/include (from the exact commit beatsaber-hook
+# 6.4.2 itself uses for its own bundled copy: 5ec44fb9206695e5293f610b0a
+# 46d21851d0c966) -- NOT restored via qpm. The qpm registry package for
+# this (rapidjson-macros) was tried first but its restore silently
+# produces an empty directory (confirmed via a CI debug step listing the
+# actual restored tree) -- it appears to be stale or broken upstream. A
+# git submodule was tried next, but kept arriving broken/empty in CI
+# despite the checkout step fetching it correctly, for reasons that were
+# taking too many round-trips to pin down -- so the headers are just
+# plain files in this repo now, like any other source file. No special
+# setup needed beyond a normal clone.
 if(NOT EXISTS ${CMAKE_SOURCE_DIR}/extern-vendor/rapidjson/include/rapidjson/document.h)
-    message(FATAL_ERROR "extern-vendor/rapidjson looks empty -- run 'git submodule update --init --recursive'.")
+    message(FATAL_ERROR "extern-vendor/rapidjson/include/rapidjson/document.h is missing -- these are plain committed files, so this means they weren't extracted/committed into the repo correctly.")
 endif()
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/extern-vendor/rapidjson/include)
 

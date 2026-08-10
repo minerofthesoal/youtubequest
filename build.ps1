@@ -10,9 +10,6 @@ if (-not $ndk) {
     exit 1
 }
 
-Write-Host "Fetching submodules (extern-vendor/rapidjson)..."
-git submodule update --init --recursive
-
 Write-Host "Restoring qpm dependencies..."
 qpm restore
 if (-not (Test-Path "extern.cmake") -or -not (Test-Path "qpm_defines.cmake")) {

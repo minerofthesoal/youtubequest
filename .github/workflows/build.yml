@@ -35,10 +35,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          # Needed for extern-vendor/rapidjson (vendored directly, not via
-          # qpm -- see CMakeLists.txt for why).
-          submodules: recursive
 
       - name: Setup NDK
         id: setup-ndk
