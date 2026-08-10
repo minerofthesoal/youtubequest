@@ -75,15 +75,26 @@ YouTubeLiveChat/
 
 ## 3. Dependencies
 
-Resolved via `qpm restore` (see `qpm.json`):
+Resolved via `qpm restore` (see `qpm.json`), plus one dependency vendored
+directly as a git submodule (see below):
 
 | Package | Why |
 |---|---|
-| `beatsaber-hook` | IL2CPP function hooking + coroutine/utility layer. Also the source of RapidJSON — it bundles it and exposes it through its `sharedDir`, so `#include "rapidjson/document.h"` just works once this restores; there's no separate RapidJSON QPM dependency |
+| `beatsaber-hook` | IL2CPP function hooking + coroutine/utility layer |
 | `custom-types` | Lets us define new IL2CPP-visible C++ classes (MonoBehaviours, ViewControllers) |
 | `bs-cordl` | Auto-generated headers for Beat Saber's own types, **pinned to your exact build** |
 | `bsml` | RedBrumbler's Quest-BSML port, for the settings menu |
 | `paper2_scotland2` | Logging shim for the Scotland2 modloader |
+
+**RapidJSON** (`#include "rapidjson/document.h"`) is vendored directly at
+`extern-vendor/rapidjson` as a git submodule, pinned to the same commit
+beatsaber-hook 6.4.2 itself bundles. The `rapidjson-macros` qpm package was
+tried first, but its restore silently produces an empty directory (confirmed
+by listing the actual restored tree in CI) -- it appears to be broken or
+stale upstream, so it's not used here. Clone this repo with
+`git clone --recurse-submodules`, or if you already cloned it, run
+`git submodule update --init --recursive` before building (`build.sh` /
+`build.ps1` do this automatically).
 
 Toolchain: `qpm-rust`/QPM.CLI, CMake ≥ 3.22, Ninja, Android NDK r27 (r27d tested; r25c's
 bundled Clang 14 is too old for beatsaber-hook ^6.0.0's C++20 usage -- see

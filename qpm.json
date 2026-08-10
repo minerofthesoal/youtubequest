@@ -25,13 +25,8 @@
     {
       "id": "beatsaber-hook",
       "versionRange": "^6.0.0",
-      "additionalData": {}
-    },
-    {
-      "id": "rapidjson-macros",
-      "versionRange": "^2.1.0",
       "additionalData": {
-        "comment": "beatsaber-hook 6.x does NOT bundle/transitively expose rapidjson (that's only true of the current beatsaber-hook master/7.x+, which is a different major version than the ^6.0.0 range above). Needs its own dependency -- confirmed against NoodleExtensions' qpm.shared.json, which pins the same beatsaber-hook 6.x line and resolves rapidjson-macros 2.1.0."
+        "comment": "Do NOT add rapidjson-macros for RapidJSON: its restore silently produces an empty extern/includes/rapidjson-macros/shared -- confirmed via a CI debug step listing the actual restored tree, and its own clone log shows zero submodule/content activity unlike every other dependency here, suggesting the package is stale/broken upstream. RapidJSON is vendored directly as a git submodule instead (see extern-vendor/rapidjson/ and CMakeLists.txt), pinned to the exact commit beatsaber-hook 6.4.2 itself already uses for its own bundled copy."
       }
     },
     {

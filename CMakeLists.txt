@@ -38,37 +38,21 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/extern/includes
 )
 
-# rapidjson-macros (the qpm package providing <rapidjson/document.h> for the
-# beatsaber-hook 6.x line -- see qpm.json) doesn't declare its own
-# info.additionalData.compileOptions.includePaths the way bs-cordl/fmt/
-# paper2_scotland2/libil2cpp do, so qpm's generated extern.cmake never adds
-# an include entry for it and a plain `#include "rapidjson/document.h"`
-# won't resolve on its own. Find wherever `qpm restore` actually put the
-# `rapidjson/` header folder and add its parent dir explicitly, rather than
-# hardcode a nested path under extern/includes/rapidjson-macros/... that
-# could shift if that package's own layout changes. Note: a single `*`
-# wildcard segment (e.g. extern/includes/*/rapidjson/document.h) only
-# matches exactly one directory of nesting and would silently miss a
-# deeper layout -- verified empirically before relying on it -- so this
-# globs for the bare filename (which GLOB_RECURSE matches at any depth)
-# and filters to entries whose parent directory is literally "rapidjson".
-file(GLOB_RECURSE ALL_DOCUMENT_H ${CMAKE_SOURCE_DIR}/extern/includes/document.h)
-set(RAPIDJSON_DOCUMENT_H "")
-foreach(candidate ${ALL_DOCUMENT_H})
-    get_filename_component(candidate_parent_dir ${candidate} DIRECTORY)
-    get_filename_component(candidate_parent_dir_name ${candidate_parent_dir} NAME)
-    if(candidate_parent_dir_name STREQUAL "rapidjson")
-        list(APPEND RAPIDJSON_DOCUMENT_H ${candidate})
-    endif()
-endforeach()
-if(RAPIDJSON_DOCUMENT_H)
-    list(GET RAPIDJSON_DOCUMENT_H 0 RAPIDJSON_DOCUMENT_H_FIRST)
-    get_filename_component(RAPIDJSON_PARENT_DIR ${RAPIDJSON_DOCUMENT_H_FIRST} DIRECTORY) # .../rapidjson
-    get_filename_component(RAPIDJSON_PARENT_DIR ${RAPIDJSON_PARENT_DIR} DIRECTORY)       # its parent
-    target_include_directories(${PROJECT_NAME} PRIVATE ${RAPIDJSON_PARENT_DIR})
-else()
-    message(WARNING "Could not find rapidjson/document.h anywhere under extern/includes -- has `qpm restore` run, and does rapidjson-macros still ship headers at that path?")
+# RapidJSON is vendored directly as a git submodule at extern-vendor/rapidjson,
+# pinned to the exact commit beatsaber-hook 6.4.2 itself uses for its own
+# bundled copy (see .gitmodules) -- NOT restored via qpm. The qpm registry
+# package for this (rapidjson-macros) was tried first but its restore
+# silently produces an empty directory (confirmed via a CI debug step
+# listing the actual restored tree: extern/includes/rapidjson-macros/shared
+# exists but is empty, and its clone log shows no submodule/content
+# activity at all, unlike every other dependency here) -- it appears to be
+# stale or broken upstream, and that's not something fixable from this
+# project's side. Requires `git submodule update --init --recursive` (the
+# CI checkout step and this repo's build scripts do this automatically).
+if(NOT EXISTS ${CMAKE_SOURCE_DIR}/extern-vendor/rapidjson/include/rapidjson/document.h)
+    message(FATAL_ERROR "extern-vendor/rapidjson looks empty -- run 'git submodule update --init --recursive'.")
 endif()
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/extern-vendor/rapidjson/include)
 
 # qpm restore writes qpm_defines.cmake and extern.cmake to the PROJECT ROOT
 # (next to this file), not into extern/ -- extern/ only holds the downloaded
