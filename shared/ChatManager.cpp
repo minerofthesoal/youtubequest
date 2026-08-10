@@ -38,9 +38,7 @@ void ChatManager::Connect() {
     generation_++;
     uint32_t myGen = generation_;
     host_->StartCoroutine(
-        reinterpret_cast<System::Collections::IEnumerator*>(
-            custom_types::Helpers::CoroutineHelper::New(RunLoop(myGen))
-        )
+        custom_types::Helpers::CoroutineHelper::New(RunLoop(myGen))
     );
 }
 
@@ -80,13 +78,11 @@ custom_types::Helpers::Coroutine ChatManager::RunLoop(uint32_t myGeneration) {
         if (liveChatId.empty()) {
             bool resolved = false;
             LiveChatLookupResult lookup{};
-            co_yield reinterpret_cast<System::Collections::IEnumerator*>(
-                custom_types::Helpers::CoroutineHelper::New(
-                    apiClient_->ResolveLiveChatId(*videoId, [&](LiveChatLookupResult r) {
-                        lookup = r;
-                        resolved = true;
-                    })
-                )
+            co_yield custom_types::Helpers::CoroutineHelper::New(
+                apiClient_->ResolveLiveChatId(*videoId, [&](LiveChatLookupResult r) {
+                    lookup = r;
+                    resolved = true;
+                })
             );
             if (!stillCurrent()) co_return;
 
@@ -96,8 +92,7 @@ custom_types::Helpers::Coroutine ChatManager::RunLoop(uint32_t myGeneration) {
             }
             if (!lookup.isLive) {
                 SetState(ConnectionState::StreamOffline, lookup.videoTitle.empty() ? "" : ("\"" + lookup.videoTitle + "\" is not currently live."));
-                co_yield reinterpret_cast<System::Collections::IEnumerator*>(
-                    custom_types::Helpers::CoroutineHelper::New(WaitSeconds(15.0f)));
+                co_yield custom_types::Helpers::CoroutineHelper::New(WaitSeconds(15.0f));
                 if (!stillCurrent()) co_return;
                 continue; // re-check for the stream going live
             }
@@ -113,13 +108,11 @@ custom_types::Helpers::Coroutine ChatManager::RunLoop(uint32_t myGeneration) {
         while (stillCurrent() && !pollFailedHard) {
             ChatPollResult result{};
             bool done = false;
-            co_yield reinterpret_cast<System::Collections::IEnumerator*>(
-                custom_types::Helpers::CoroutineHelper::New(
-                    apiClient_->FetchMessages(liveChatId, pageToken, [&](ChatPollResult r) {
-                        result = r;
-                        done = true;
-                    })
-                )
+            co_yield custom_types::Helpers::CoroutineHelper::New(
+                apiClient_->FetchMessages(liveChatId, pageToken, [&](ChatPollResult r) {
+                    result = r;
+                    done = true;
+                })
             );
             if (!stillCurrent()) co_return;
 
@@ -134,8 +127,7 @@ custom_types::Helpers::Coroutine ChatManager::RunLoop(uint32_t myGeneration) {
                 float waitSecs = std::max<float>(
                     config_.minPollIntervalSeconds,
                     static_cast<float>(result.pollingIntervalMillis) / 1000.0f);
-                co_yield reinterpret_cast<System::Collections::IEnumerator*>(
-                    custom_types::Helpers::CoroutineHelper::New(WaitSeconds(waitSecs)));
+                co_yield custom_types::Helpers::CoroutineHelper::New(WaitSeconds(waitSecs));
                 continue;
             }
 
@@ -149,8 +141,7 @@ custom_types::Helpers::Coroutine ChatManager::RunLoop(uint32_t myGeneration) {
             if (result.quotaExceeded) {
                 SetState(ConnectionState::RateLimited, "Daily YouTube API quota exceeded.");
                 if (!config_.autoReconnect) co_return;
-                co_yield reinterpret_cast<System::Collections::IEnumerator*>(
-                    custom_types::Helpers::CoroutineHelper::New(WaitSeconds(300.0f))); // quota resets daily; don't spin
+                co_yield custom_types::Helpers::CoroutineHelper::New(WaitSeconds(300.0f)); // quota resets daily; don't spin
                 if (!stillCurrent()) co_return;
                 co_return; // let the outer Connect() call (or a future manual retry) start fresh
             }
@@ -164,8 +155,7 @@ custom_types::Helpers::Coroutine ChatManager::RunLoop(uint32_t myGeneration) {
             SetState(ConnectionState::NetworkError, result.errorMessage);
             if (!config_.autoReconnect) co_return;
 
-            co_yield reinterpret_cast<System::Collections::IEnumerator*>(
-                custom_types::Helpers::CoroutineHelper::New(WaitSeconds(static_cast<float>(networkErrorBackoffSeconds))));
+            co_yield custom_types::Helpers::CoroutineHelper::New(WaitSeconds(static_cast<float>(networkErrorBackoffSeconds)));
             if (!stillCurrent()) co_return;
             networkErrorBackoffSeconds = std::min(networkErrorBackoffSeconds * 2, 60); // exponential, capped at 60s
         }
