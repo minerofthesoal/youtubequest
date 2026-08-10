@@ -8,8 +8,8 @@
 
 #include <algorithm>
 
-static const Logger& log() {
-    static auto logger = Paper::ConstLoggerContext<"YTLiveChat.Manager">();
+static auto& log() {
+    static auto logger = Paper::ConstLoggerContext("YTLiveChat.Manager");
     return logger;
 }
 

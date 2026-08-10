@@ -20,8 +20,8 @@ using namespace UnityEngine::Networking;
 // for whatever logging package your qpm.json ends up resolving if you use
 // a different one (e.g. plain `Paper::Logger`).
 // -----------------------------------------------------------------------
-static const Logger& log() {
-    static auto logger = Paper::ConstLoggerContext<"YTLiveChat.Api">();
+static auto& log() {
+    static auto logger = Paper::ConstLoggerContext("YTLiveChat.Api");
     return logger;
 }
 
