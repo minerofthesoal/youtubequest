@@ -20,6 +20,12 @@ on:
 
 env:
   # Keep this in sync with build.ps1/build.sh and README §3-4.
+  # r27 is current NDK LTS (per BSMG wiki's `qpm ndk pin 27`) and is required
+  # here: beatsaber-hook ^6.0.0's headers use C++20 <ranges> and rely on
+  # libc++'s constexpr std::string support, neither of which r25c's bundled
+  # Clang 14.0.7 has -- that combination fails with "'ranges' file not
+  # found" and "constexpr constructor never produces a constant expression"
+  # deep in compilation, not an obviously NDK-related error.
   NDK_VERSION: r27d
   MOD_OUTPUT_NAME: YouTubeLiveChat
 
@@ -99,7 +105,7 @@ jobs:
           # *output*, and letting `restore-keys` fall back to an
           # older/partial cache entry can hand `qpm restore` a stale
           # `extern/` it then treats as already-populated, silently
-          # skipping regeneration of extern.cmake. Regenerating
+          # skipping regeneration of extern/extern.cmake. Regenerating
           # `extern` fresh from this package cache every run is fast and
           # avoids that failure mode.
           path: ~/.local/share/QPM
@@ -119,6 +125,23 @@ jobs:
             echo "::error::qpm restore did not produce extern.cmake / qpm_defines.cmake -- dependencies were not restored. Check the qpm restore output above."
             exit 1
           fi
+
+      # TEMPORARY diagnostic: CMakeLists.txt's rapidjson auto-discovery glob
+      # (searches extern/includes for any document.h whose parent dir is
+      # named "rapidjson") is finding nothing, so its assumed layout for the
+      # rapidjson-macros package is wrong. Dump the actual restored tree so
+      # the real path can be confirmed instead of guessed again. Safe to
+      # remove once that's sorted out.
+      - name: Debug - inspect restored rapidjson-macros
+        run: |
+          echo "=== extern/includes top level ==="
+          ls -la extern/includes/ || true
+          echo "=== full tree under extern/includes/rapidjson-macros ==="
+          find extern/includes/rapidjson-macros 2>&1 || echo "(no such directory)"
+          echo "=== any file named document.h anywhere under extern ==="
+          find extern -iname "document.h" 2>&1 || echo "(none found)"
+          echo "=== any directory with 'rapidjson' in its name anywhere under extern ==="
+          find extern -iname "*rapidjson*" 2>&1 || echo "(none found)"
 
       - name: Configure + build
         env:
