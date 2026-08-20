@@ -80,6 +80,11 @@ void ChatOverlayController::Awake() {
     Build();
 
     auto& manager = ModState::Manager();
+    // This component is the coroutine host for the whole mod: it is
+    // DontDestroyOnLoad, so a poll or a sign-in in flight is not cancelled
+    // when a level loads. The callbacks themselves are wired once at
+    // late_load by ModState::InstallManagerCallbacks.
+    manager.SetHost(this);
     manager.Configure(config_);
 
     ApplyConfig(config_);
