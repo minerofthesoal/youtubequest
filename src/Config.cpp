@@ -1,29 +1,31 @@
 #include "Config.hpp"
+
 #include "rapidjson/document.h"
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
-#include "rapidjson/error/en.h"
 
 #include <fstream>
 #include <sstream>
 #include <sys/stat.h>
 
-// NOTE: this mirrors the folder convention most Quest BS mods use for their
-// own JSON config (as opposed to game save data). If your build environment
-// already has `config-utils` set up and you'd rather use its observable
-// Config<T> wrapper (auto-persists on field write, integrates with BSML's
-// two-way binding more smoothly), swap this file for that -- the ModConfig
-// struct above is deliberately plain-old-data so either approach works.
 namespace {
-    constexpr const char* kConfigDir = "/sdcard/ModData/com.beatgames.beatsaber/Configs";
-    constexpr const char* kConfigPath = "/sdcard/ModData/com.beatgames.beatsaber/Configs/YouTubeLiveChat.json";
+constexpr const char* kConfigDir = "/sdcard/ModData/com.beatgames.beatsaber/Configs";
+constexpr const char* kConfigPath = "/sdcard/ModData/com.beatgames.beatsaber/Configs/YouTubeLiveChat.json";
 
-    void EnsureDir() {
-        mkdir("/sdcard/ModData", 0770);
-        mkdir("/sdcard/ModData/com.beatgames.beatsaber", 0770);
-        mkdir(kConfigDir, 0770);
-    }
+void EnsureDir() {
+    mkdir("/sdcard/ModData", 0775);
+    mkdir("/sdcard/ModData/com.beatgames.beatsaber", 0775);
+    mkdir(kConfigDir, 0775);
 }
+
+std::string ReadFile(const std::string& path) {
+    std::ifstream f(path, std::ios::binary);
+    if (!f) return "";
+    std::ostringstream ss;
+    ss << f.rdbuf();
+    return ss.str();
+}
+}  // namespace
 
 namespace YouTubeLiveChat {
 
@@ -52,12 +54,17 @@ PanelPreset PanelPresetFromString(const std::string& s) {
     return PanelPreset::Custom;
 }
 
-static std::string ReadFile(const std::string& path) {
-    std::ifstream f(path, std::ios::binary);
-    if (!f) return "";
-    std::ostringstream ss;
-    ss << f.rdbuf();
-    return ss.str();
+const char* AuthModeToString(AuthMode m) {
+    switch (m) {
+        case AuthMode::ApiKey: return "ApiKey";
+        case AuthMode::OAuth:  return "OAuth";
+    }
+    return "ApiKey";
+}
+
+AuthMode AuthModeFromString(const std::string& s) {
+    if (s == "OAuth") return AuthMode::OAuth;
+    return AuthMode::ApiKey;
 }
 
 #define GET_BOOL(field) if (doc.HasMember(#field) && doc[#field].IsBool()) cfg.field = doc[#field].GetBool();
@@ -69,7 +76,7 @@ ModConfig ModConfig::Load() {
     ModConfig cfg{};
     std::string text = ReadFile(kConfigPath);
     if (text.empty()) {
-        return cfg; // first run -- defaults, then Save() will create the file
+        return cfg;  // first run -- defaults, then Save() will create the file
     }
 
     rapidjson::Document doc;
@@ -79,14 +86,24 @@ ModConfig ModConfig::Load() {
     }
 
     GET_BOOL(enabled)
-    GET_STR(apiKey)
     GET_STR(videoIdOrUrl)
     GET_BOOL(autoReconnect)
     GET_BOOL(debugLogging)
 
+    if (doc.HasMember("authMode") && doc["authMode"].IsString()) {
+        cfg.authMode = AuthModeFromString(doc["authMode"].GetString());
+    }
+    GET_STR(apiKey)
+    GET_STR(oauthClientId)
+    GET_STR(oauthClientSecret)
+    GET_STR(oauthRefreshToken)
+    GET_STR(oauthAccountName)
+    GET_BOOL(useOwnBroadcast)
+
     if (doc.HasMember("preset") && doc["preset"].IsString()) {
         cfg.preset = PanelPresetFromString(doc["preset"].GetString());
     }
+    GET_BOOL(followHead)
     GET_FLOAT(customX)
     GET_FLOAT(customY)
     GET_FLOAT(customZ)
@@ -97,6 +114,13 @@ ModConfig ModConfig::Load() {
     GET_FLOAT(height)
     GET_FLOAT(scale)
     GET_FLOAT(opacity)
+
+    GET_FLOAT(panelPosX)
+    GET_FLOAT(panelPosY)
+    GET_FLOAT(panelPosZ)
+    GET_FLOAT(panelRotX)
+    GET_FLOAT(panelRotY)
+    GET_FLOAT(panelRotZ)
 
     GET_INT(maxVisibleMessages)
     GET_FLOAT(messageDurationSeconds)
@@ -127,12 +151,20 @@ void ModConfig::Save() const {
     auto& alloc = doc.GetAllocator();
 
     doc.AddMember("enabled", enabled, alloc);
-    doc.AddMember("apiKey", rapidjson::Value(apiKey.c_str(), alloc), alloc);
     doc.AddMember("videoIdOrUrl", rapidjson::Value(videoIdOrUrl.c_str(), alloc), alloc);
     doc.AddMember("autoReconnect", autoReconnect, alloc);
     doc.AddMember("debugLogging", debugLogging, alloc);
 
+    doc.AddMember("authMode", rapidjson::Value(AuthModeToString(authMode), alloc), alloc);
+    doc.AddMember("apiKey", rapidjson::Value(apiKey.c_str(), alloc), alloc);
+    doc.AddMember("oauthClientId", rapidjson::Value(oauthClientId.c_str(), alloc), alloc);
+    doc.AddMember("oauthClientSecret", rapidjson::Value(oauthClientSecret.c_str(), alloc), alloc);
+    doc.AddMember("oauthRefreshToken", rapidjson::Value(oauthRefreshToken.c_str(), alloc), alloc);
+    doc.AddMember("oauthAccountName", rapidjson::Value(oauthAccountName.c_str(), alloc), alloc);
+    doc.AddMember("useOwnBroadcast", useOwnBroadcast, alloc);
+
     doc.AddMember("preset", rapidjson::Value(PanelPresetToString(preset), alloc), alloc);
+    doc.AddMember("followHead", followHead, alloc);
     doc.AddMember("customX", customX, alloc);
     doc.AddMember("customY", customY, alloc);
     doc.AddMember("customZ", customZ, alloc);
@@ -143,6 +175,13 @@ void ModConfig::Save() const {
     doc.AddMember("height", height, alloc);
     doc.AddMember("scale", scale, alloc);
     doc.AddMember("opacity", opacity, alloc);
+
+    doc.AddMember("panelPosX", panelPosX, alloc);
+    doc.AddMember("panelPosY", panelPosY, alloc);
+    doc.AddMember("panelPosZ", panelPosZ, alloc);
+    doc.AddMember("panelRotX", panelRotX, alloc);
+    doc.AddMember("panelRotY", panelRotY, alloc);
+    doc.AddMember("panelRotZ", panelRotZ, alloc);
 
     doc.AddMember("maxVisibleMessages", maxVisibleMessages, alloc);
     doc.AddMember("messageDurationSeconds", messageDurationSeconds, alloc);
@@ -167,4 +206,4 @@ void ModConfig::Save() const {
     }
 }
 
-}
+}  // namespace YouTubeLiveChat

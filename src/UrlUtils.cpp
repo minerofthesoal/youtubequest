@@ -75,3 +75,23 @@ std::optional<std::string> ExtractVideoId(const std::string& rawInput) {
 }
 
 }
+
+namespace YouTubeLiveChat::UrlUtils {
+
+std::string UrlEncode(const std::string& value) {
+    static const char* kHex = "0123456789ABCDEF";
+    std::string out;
+    out.reserve(value.size() * 3);
+    for (unsigned char c : value) {
+        if (std::isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
+            out.push_back(static_cast<char>(c));
+        } else {
+            out.push_back('%');
+            out.push_back(kHex[c >> 4]);
+            out.push_back(kHex[c & 0x0F]);
+        }
+    }
+    return out;
+}
+
+}  // namespace YouTubeLiveChat::UrlUtils

@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Packages the built .so + mod.json into YouTubeLiveChat.qmod (just a zip)
+# Renders mod.json from mod.template.json and packages the .qmod.
 set -euo pipefail
-out="YouTubeLiveChat.qmod"
-rm -f "$out"
-zip -j "$out" mod.json build/libyoutubelivechat.so
-echo "Wrote $out"
+exec "$(dirname "$0")/scripts/package-qmod.sh" "$@"

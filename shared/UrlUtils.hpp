@@ -16,4 +16,8 @@ std::optional<std::string> ExtractVideoId(const std::string& input);
 // Trims ASCII whitespace from both ends.
 std::string Trim(const std::string& input);
 
-}
+// Percent-encodes everything outside the RFC 3986 unreserved set. Used for
+// both query strings and application/x-www-form-urlencoded bodies.
+std::string UrlEncode(const std::string& value);
+
+}  // namespace YouTubeLiveChat::UrlUtils

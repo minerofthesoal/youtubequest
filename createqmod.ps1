@@ -1,6 +1,4 @@
-# Packages the built .so + mod.json into YouTubeLiveChat.qmod (just a zip)
+# Renders mod.json from mod.template.json and packages the .qmod.
+# Shells out to the same script CI uses, so the two can't drift apart.
 $ErrorActionPreference = "Stop"
-$out = "YouTubeLiveChat.qmod"
-if (Test-Path $out) { Remove-Item $out }
-Compress-Archive -Path "mod.json","build/libyoutubelivechat.so" -DestinationPath $out
-Write-Host "Wrote $out"
+bash ./scripts/package-qmod.sh @args
