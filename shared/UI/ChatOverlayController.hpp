@@ -6,6 +6,7 @@
 #include "UnityEngine/CanvasGroup.hpp"
 #include "UnityEngine/AudioSource.hpp"
 #include "UnityEngine/AudioClip.hpp"
+#include "UnityEngine/Object.hpp"  // SafePtr static_assert needs Object complete
 #include "HMUI/CurvedTextMeshPro.hpp"
 #include "bsml/shared/BSML/FloatingScreen/FloatingScreen.hpp"
 

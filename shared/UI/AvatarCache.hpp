@@ -7,6 +7,7 @@
 #include "custom-types/shared/coroutine.hpp"
 #include "UnityEngine/MonoBehaviour.hpp"
 #include "UnityEngine/Texture2D.hpp"
+#include "UnityEngine/Object.hpp"  // SafePtr static_assert needs Object complete
 
 #include "beatsaber-hook/shared/utils/typedefs-wrappers.hpp"
 

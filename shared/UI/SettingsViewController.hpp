@@ -5,6 +5,7 @@
 #include "HMUI/ViewController.hpp"
 #include "HMUI/CurvedTextMeshPro.hpp"
 #include "UnityEngine/UI/Button.hpp"
+#include "UnityEngine/Object.hpp"  // SafePtr static_assert needs Object complete
 
 #include "beatsaber-hook/shared/utils/typedefs-wrappers.hpp"
 
@@ -34,6 +35,7 @@ DECLARE_CLASS_CODEGEN(YouTubeLiveChat::UI, SettingsViewController, HMUI::ViewCon
     DECLARE_OVERRIDE_METHOD_MATCH(void, DidDeactivate, &HMUI::ViewController::DidDeactivate,
                                   bool removedFromHierarchy, bool screenSystemDisabling);
 
+   public:
     void SetStatus(std::string const& text);
     void SetSignInPrompt(std::string const& userCode, std::string const& verificationUrl);
     // Re-reads the shared config and updates the labels this controller owns.

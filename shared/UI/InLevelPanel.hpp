@@ -2,6 +2,7 @@
 #include "UnityEngine/Vector3.hpp"
 #include "bsml/shared/BSML/FloatingScreen/FloatingScreen.hpp"
 #include "HMUI/CurvedTextMeshPro.hpp"
+#include "UnityEngine/Object.hpp"  // SafePtr static_assert needs Object complete
 
 #include "beatsaber-hook/shared/utils/typedefs-wrappers.hpp"
 

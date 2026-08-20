@@ -16,6 +16,11 @@
 #include "System/TimeSpan.hpp"
 #include "System/Uri.hpp"
 
+// SafePtr's "don't wrap Unity types" static_assert instantiates
+// is_assignable_v<UnityEngine::Object, T>, which needs Object to be a
+// complete type -- cordl only forward-declares it otherwise.
+#include "UnityEngine/Object.hpp"
+
 #include "beatsaber-hook/shared/utils/typedefs.h"
 #include "beatsaber-hook/shared/utils/typedefs-wrappers.hpp"
 
@@ -116,7 +121,7 @@ custom_types::Helpers::Coroutine Request(std::string method,
         if (!readTask->get_IsFaulted() && !readTask->get_IsCanceled()) {
             result.body = ToStd(readTask->get_Result());
         }
-        client->Dispose();
+        client->Dispose(true);
     } catch (std::exception const& e) {
         Log().warn("Reading HTTP body failed: {}", e.what());
     }
