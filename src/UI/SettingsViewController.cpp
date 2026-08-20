@@ -86,10 +86,12 @@ void SettingsViewController::DidActivate(bool firstActivation, bool addedToHiera
         BuildUI();
     }
     RefreshFromConfig();
-    SetStatus(std::string(ToString(ModState::Manager().State())) +
-              (ModState::Manager().StatusDetail().empty()
-                   ? ""
-                   : (" - " + ModState::Manager().StatusDetail())));
+    // Qualified: this controller inherits UnityEngine::Object, whose own
+    // ToString member would otherwise hide the ConnectionState overload.
+    auto& manager = ModState::Manager();
+    std::string line = YouTubeLiveChat::ToString(manager.State());
+    if (!manager.StatusDetail().empty()) line += " - " + manager.StatusDetail();
+    SetStatus(line);
 }
 
 void SettingsViewController::DidDeactivate(bool removedFromHierarchy, bool screenSystemDisabling) {
