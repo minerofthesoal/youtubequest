@@ -34,6 +34,20 @@ endif()
 
 add_library(${PROJECT_NAME} SHARED ${MOD_SOURCES})
 
+# beatsaber-hook ships its ARM64 inline-hook implementation as *source*, not
+# inside libbeatsaber-hook.so: hooking.hpp calls A64HookFunction, which is
+# defined in And64InlineHook.cpp. Every mod that installs a hook has to compile
+# these into its own library, otherwise everything builds cleanly and then the
+# link fails with "undefined symbol: A64HookFunction".
+file(GLOB_RECURSE INLINE_HOOK_SOURCES
+    ${CMAKE_SOURCE_DIR}/extern/includes/beatsaber-hook/shared/inline-hook/*.cpp
+    ${CMAKE_SOURCE_DIR}/extern/includes/beatsaber-hook/shared/inline-hook/*.c
+)
+if(NOT INLINE_HOOK_SOURCES)
+    message(FATAL_ERROR "No inline-hook sources under extern/includes/beatsaber-hook/shared/inline-hook -- did 'qpm restore' run?")
+endif()
+target_sources(${PROJECT_NAME} PRIVATE ${INLINE_HOOK_SOURCES})
+
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/shared
     ${CMAKE_SOURCE_DIR}/src

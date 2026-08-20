@@ -4,6 +4,7 @@
 
 #include "UnityEngine/MonoBehaviour.hpp"
 #include "UnityEngine/CanvasGroup.hpp"
+#include "UnityEngine/Vector3.hpp"
 #include "UnityEngine/AudioSource.hpp"
 #include "UnityEngine/AudioClip.hpp"
 #include "UnityEngine/Object.hpp"  // SafePtr static_assert needs Object complete
@@ -83,6 +84,7 @@ DECLARE_CLASS_CODEGEN(YouTubeLiveChat::UI, ChatOverlayController, UnityEngine::M
     bool built_ = false;
     float placementSaveTimer_ = 0.0f;
     bool placementDirty_ = false;
+    UnityEngine::Vector3 lastPlacementPos_{};
 
     void Build();
     void BuildRowPool();

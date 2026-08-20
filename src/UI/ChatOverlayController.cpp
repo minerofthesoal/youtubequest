@@ -206,9 +206,15 @@ void ChatOverlayController::ApplyPlacement(bool immediate) {
 
     if (!config_.followHead) {
         if (immediate) {
-            screenTransform->set_position(Vector3(config_.panelPosX, config_.panelPosY, config_.panelPosZ));
+            Vector3 saved(config_.panelPosX, config_.panelPosY, config_.panelPosZ);
+            screenTransform->set_position(saved);
             screenTransform->set_rotation(
                 Quaternion::Euler(config_.panelRotX, config_.panelRotY, config_.panelRotZ));
+            // Seed the drag tracker so the very first frame doesn't look like
+            // the user just moved the panel.
+            lastPlacementPos_ = saved;
+            placementDirty_ = false;
+            placementSaveTimer_ = 0.0f;
         }
         return;
     }
@@ -246,9 +252,12 @@ void ChatOverlayController::TrackFreePlacement() {
 
     UnityEngine::Transform* screenTransform = screen_->get_transform();
     Vector3 pos = screenTransform->get_position();
-    Vector3 saved(config_.panelPosX, config_.panelPosY, config_.panelPosZ);
 
-    if (Distance(pos, saved) > 0.005f) {
+    // Debounce on "has it moved since last frame", not on "does it differ from
+    // the saved value": the saved value only catches up once we write it, so
+    // comparing against it would restart the timer forever and never save.
+    if (Distance(pos, lastPlacementPos_) > 0.001f) {
+        lastPlacementPos_ = pos;
         placementDirty_ = true;
         placementSaveTimer_ = 0.0f;
         return;
@@ -256,8 +265,8 @@ void ChatOverlayController::TrackFreePlacement() {
 
     if (!placementDirty_) return;
 
-    // Debounced: persist a couple of seconds after the panel stops moving, so
-    // dragging it around doesn't write the config file every frame.
+    // Persist a couple of seconds after the panel stops moving, so dragging it
+    // around doesn't rewrite the config file every frame.
     placementSaveTimer_ += Time::get_deltaTime();
     if (placementSaveTimer_ < 2.0f) return;
 
@@ -279,7 +288,13 @@ void ChatOverlayController::TrackFreePlacement() {
 
 void ChatOverlayController::Update() {
     if (!built_ || !screen_) return;
-    if (!config_.enabled) return;
+    if (!config_.enabled) {
+        // Polling keeps running while the overlay is hidden (so re-enabling it
+        // is instant), but the buffer must not grow without bound in the
+        // meantime.
+        incoming_.clear();
+        return;
+    }
 
     ApplyPlacement(false);
     TrackFreePlacement();
@@ -365,8 +380,10 @@ void ChatOverlayController::ApplyOneMessage(ChatMessage const& msg) {
 }
 
 void ChatOverlayController::RelayoutRows() {
-    const float top = (ScreenHeightUnits() / 2.0f) - kHeaderHeight;
-    float y = top;
+    // Rows are anchored to the top edge with a top pivot, so anchoredPosition.y
+    // is measured downwards from the top of the panel -- the header occupies
+    // the first kHeaderHeight units.
+    float y = -kHeaderHeight;
     for (size_t idx : activeOrder_) {
         auto& row = rows_[idx];
         if (!row.root) continue;

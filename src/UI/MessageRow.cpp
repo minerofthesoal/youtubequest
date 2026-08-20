@@ -67,10 +67,15 @@ MessageRow MessageRow::Create(Transform* parent, float width, float rowHeight) {
     auto* rootGo = GameObject::New_ctor(StringW("YTLC_MessageRow"));
     row.root = rootGo->AddComponent<RectTransform*>();
     row.root->SetParent(parent, false);
-    row.root->set_anchorMin(Vector2(0.0f, 1.0f));
-    row.root->set_anchorMax(Vector2(1.0f, 1.0f));
+    // Anchored to the top edge with a top pivot and an explicit width, so
+    // anchoredPosition.y is simply "distance below the top of the panel" and
+    // the child offsets below can be computed from `width` directly. A
+    // stretched row would be as wide as the parent instead, which is not the
+    // width the caller asked for.
+    row.root->set_anchorMin(Vector2(0.5f, 1.0f));
+    row.root->set_anchorMax(Vector2(0.5f, 1.0f));
     row.root->set_pivot(Vector2(0.5f, 1.0f));
-    row.root->set_sizeDelta(Vector2(0.0f, rowHeight));
+    row.root->set_sizeDelta(Vector2(width, rowHeight));
 
     const float avatarSize = rowHeight - 1.0f;
 
