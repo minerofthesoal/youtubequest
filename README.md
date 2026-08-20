@@ -49,7 +49,8 @@ youtubequest/
 ├── mod.template.json         # qmod manifest template (mod.json is generated)
 ├── CMakeLists.txt            # NDK build config
 ├── build.ps1 / build.sh      # one-shot build scripts
-├── createqmod.ps1 / .sh      # renders mod.json and packages the .qmod
+├── createqmod.ps1 / .sh      # thin wrappers around scripts/package-qmod.sh
+├── scripts/package-qmod.sh   # renders mod.json, checks it, zips the .qmod
 ├── shared/                   # headers
 │   ├── Logging.hpp           # the one paper2 logger context
 │   ├── ChatTypes.hpp         # ChatMessage, ConnectionState, event enums
@@ -158,6 +159,12 @@ export ANDROID_NDK_HOME=/path/to/ndk/27.3.13750724
 ```
 
 Output: `build/libyoutubelivechat.so`, packaged into `YouTubeLiveChat.qmod`.
+
+Packaging goes through `scripts/package-qmod.sh`, which CI and both local
+`createqmod` scripts call, so the local and CI archives can't drift apart. It
+renders the manifest, checks that the files mod.json declares are exactly what
+the archive will contain (a manifest naming a missing file fails at install
+time on the headset, which is a slow place to find out), and then zips.
 
 `mod.json` is **generated** from `mod.template.json` by `qpm qmod manifest`,
 which fills in the dependency list — ids, version ranges and

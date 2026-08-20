@@ -113,17 +113,7 @@ jobs:
           echo "setup and late_load are exported."
 
       - name: Package .qmod
-        run: |
-          set -euo pipefail
-          # `qmod manifest` renders mod.template.json into mod.json, filling in
-          # the dependency list (ids, version ranges and downloadIfMissing
-          # URLs) from what restore actually resolved -- which is why mod.json
-          # is generated rather than hand-maintained: hand-written URLs go
-          # stale silently when an upstream repo moves.
-          qpm qmod manifest
-          cat mod.json
-          qpm qmod zip --skip_build "${MOD_OUTPUT_NAME}.qmod"
-          unzip -l "${MOD_OUTPUT_NAME}.qmod"
+        run: ./scripts/package-qmod.sh "${MOD_OUTPUT_NAME}.qmod"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
