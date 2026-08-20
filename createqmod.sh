@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
-# Packages the built .so + mod.json into YouTubeLiveChat.qmod (just a zip)
+# Renders mod.template.json into mod.json (filling in the dependency list from
+# what qpm actually resolved) and zips it up with the built .so.
 set -euo pipefail
-out="YouTubeLiveChat.qmod"
-rm -f "$out"
-zip -j "$out" mod.json build/libyoutubelivechat.so
-echo "Wrote $out"
+
+if [ ! -f build/libyoutubelivechat.so ]; then
+    echo "error: build/libyoutubelivechat.so not found -- run ./build.sh first." >&2
+    exit 1
+fi
+
+qpm qmod manifest
+qpm qmod zip --skip_build YouTubeLiveChat.qmod
+unzip -l YouTubeLiveChat.qmod

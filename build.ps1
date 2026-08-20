@@ -1,6 +1,6 @@
 # Build script for YouTube Live Chat (Beat Saber Quest mod)
-# Requires: qpm-rust, CMake >= 3.22, Ninja, Android NDK r27 (r27d tested)
-# Set $env:ANDROID_NDK_HOME before running, or edit $ndk below.
+# Requires: qpm, CMake >= 3.22, Ninja, Android NDK r27 (r27d tested)
+# Set $env:ANDROID_NDK_HOME before running.
 
 $ErrorActionPreference = "Stop"
 
@@ -17,17 +17,14 @@ if (-not (Test-Path "extern.cmake") -or -not (Test-Path "qpm_defines.cmake")) {
     exit 1
 }
 
-$buildDir = "build"
-if (-not (Test-Path $buildDir)) { New-Item -ItemType Directory -Path $buildDir | Out-Null }
-
 cmake -G "Ninja" `
     -DCMAKE_TOOLCHAIN_FILE="$ndk/build/cmake/android.toolchain.cmake" `
     -DANDROID_ABI=arm64-v8a `
     -DANDROID_PLATFORM=android-24 `
     -DCMAKE_BUILD_TYPE=Release `
-    -B $buildDir .
+    -B build .
 
-cmake --build $buildDir -j
+cmake --build build -j
 
-Write-Host "Built: $buildDir/libyoutubelivechat.so"
+Write-Host "Built: build/libyoutubelivechat.so"
 Write-Host "Next: ./createqmod.ps1 to package it into a .qmod"

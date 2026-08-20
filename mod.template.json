@@ -1,0 +1,21 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Lauriethefish/QuestPatcher.QMod/main/QuestPatcher.QMod/Resources/qmod.schema.json",
+  "_QPVersion": "1.1.0",
+  "name": "${mod_name}",
+  "id": "${mod_id}",
+  "modloader": "Scotland2",
+  "author": "minerofthesoal",
+  "version": "${version}",
+  "packageId": "com.beatgames.beatsaber",
+  "packageVersion": "1.40.3_4614",
+  "description": "Pop-out YouTube live chat overlay for Beat Saber, standalone on Quest. Shows chat in the menu and during levels, signs in with your YouTube account (or a plain API key), and needs no PC or companion server.",
+  "dependencies": [],
+  "modFiles": [
+    "${binary}"
+  ],
+  "lateModFiles": [],
+  "libraryFiles": [],
+  "fileCopies": [],
+  "copyExtensions": [],
+  "isLibrary": false
+}

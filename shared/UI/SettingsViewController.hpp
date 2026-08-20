@@ -1,71 +1,58 @@
 #pragma once
 #include "custom-types/shared/macros.hpp"
 #include "custom-types/shared/types.hpp"
+
 #include "HMUI/ViewController.hpp"
-#include "System/Collections/Generic/List_1.hpp"
-#include "bsml/shared/BSML.hpp" // VERIFY: actual include path/namespace in your restored `bsml` package
+#include "HMUI/CurvedTextMeshPro.hpp"
+#include "UnityEngine/UI/Button.hpp"
+
+#include "beatsaber-hook/shared/utils/typedefs-wrappers.hpp"
+
+#include <functional>
+#include <string>
 
 #include "Config.hpp"
 
-// VERIFY: on Quest-BSML, `value="FieldName"` binds directly to a public field
-// or a get_/set_ method pair on this host by name via il2cpp reflection --
-// there is no [UIValue]/[UIAction] attribute step like PC BSML. That means
-// every field referenced from BSMLLayouts.hpp's `value="..."` MUST exist
-// below with a matching name, and every `on-click="..."` MUST be a
-// DECLARE_INSTANCE_METHOD with that exact name. Double check the exact
-// binding rules against whichever bsml release your qpm.json resolves --
-// this has been a moving target across Quest-BSML versions.
-DECLARE_CLASS_CODEGEN(YouTubeLiveChat::UI, SettingsViewController, HMUI::ViewController,
+// The settings screen, registered with BSML under Settings -> Mods.
+//
+// Built imperatively with BSML-Lite rather than from a BSML XML document on
+// purpose: XML binds `value="Foo"` / `on-click="Bar"` to the host object by
+// *name* through il2cpp reflection, so a typo or a renamed field is a silent
+// runtime no-op. Building the same controls in C++ makes every binding a
+// direct lambda the compiler checks.
+DECLARE_CLASS_CODEGEN(YouTubeLiveChat::UI, SettingsViewController, HMUI::ViewController) {
+   public:
+    DECLARE_DEFAULT_CTOR();
 
-public:
-    DECLARE_INSTANCE_METHOD(void, ctor);
-    DECLARE_INSTANCE_METHOD(void, DidActivate, bool firstActivation, bool addedToHierarchy, bool screenSystemEnabling);
+    // DidActivate/DidDeactivate are *virtual* on HMUI::ViewController, so they
+    // need OVERRIDE_METHOD_MATCH rather than INSTANCE_METHOD: the latter would
+    // declare a brand-new C# method that the base class's virtual dispatch
+    // never calls, leaving the settings screen permanently blank.
+    DECLARE_OVERRIDE_METHOD_MATCH(void, DidActivate, &HMUI::ViewController::DidActivate,
+                                  bool firstActivation, bool addedToHierarchy,
+                                  bool screenSystemEnabling);
+    DECLARE_OVERRIDE_METHOD_MATCH(void, DidDeactivate, &HMUI::ViewController::DidDeactivate,
+                                  bool removedFromHierarchy, bool screenSystemDisabling);
 
-    // --- BSML-bound fields (see BSMLLayouts.hpp `value="..."`) ---
-    DECLARE_INSTANCE_FIELD(StringW, ApiKey);
-    DECLARE_INSTANCE_FIELD(StringW, VideoIdOrUrl);
-    DECLARE_INSTANCE_FIELD(bool, Enabled);
-    DECLARE_INSTANCE_FIELD(bool, AutoReconnect);
-    DECLARE_INSTANCE_FIELD(bool, DebugLogging);
+    void SetStatus(std::string const& text);
+    void SetSignInPrompt(std::string const& userCode, std::string const& verificationUrl);
+    // Re-reads the shared config and updates the labels this controller owns.
+    void RefreshFromConfig();
 
-    DECLARE_INSTANCE_FIELD(int, PresetIndex);
-    DECLARE_INSTANCE_FIELD(System::Collections::Generic::List_1<StringW>*, PresetChoices);
-    DECLARE_INSTANCE_FIELD(float, HorizontalOffset);
-    DECLARE_INSTANCE_FIELD(float, VerticalOffset);
-    DECLARE_INSTANCE_FIELD(float, Distance);
-    DECLARE_INSTANCE_FIELD(float, Width);
-    DECLARE_INSTANCE_FIELD(float, Height);
-    DECLARE_INSTANCE_FIELD(float, Scale);
-    DECLARE_INSTANCE_FIELD(float, Opacity);
+   private:
+    SafePtrUnity<HMUI::CurvedTextMeshPro> statusText_;
+    SafePtrUnity<HMUI::CurvedTextMeshPro> authStatusText_;
+    SafePtrUnity<UnityEngine::UI::Button> signInButton_;
 
-    DECLARE_INSTANCE_FIELD(int, MaxVisibleMessages);
-    DECLARE_INSTANCE_FIELD(float, MessageDurationSeconds);
-    DECLARE_INSTANCE_FIELD(bool, ShowRegularMessages);
-    DECLARE_INSTANCE_FIELD(bool, ShowSuperChats);
-    DECLARE_INSTANCE_FIELD(bool, ShowSuperStickers);
-    DECLARE_INSTANCE_FIELD(bool, ShowMembershipEvents);
-    DECLARE_INSTANCE_FIELD(bool, ShowUsernames);
-    DECLARE_INSTANCE_FIELD(bool, ShowProfilePictures);
-    DECLARE_INSTANCE_FIELD(bool, HighlightSuperChats);
-    DECLARE_INSTANCE_FIELD(bool, HighlightMemberships);
-    DECLARE_INSTANCE_FIELD(bool, NotificationSounds);
+    std::string statusLine_;
+    std::string promptLine_;
 
-    DECLARE_INSTANCE_FIELD(StringW, StatusText);
+    void BuildUI();
+    void BuildConnectionSection(UnityEngine::Transform * parent);
+    void BuildPlacementSection(UnityEngine::Transform * parent);
+    void BuildMessageSection(UnityEngine::Transform * parent);
+    void RefreshAuthStatus();
 
-    // --- on-click handlers ---
-    DECLARE_INSTANCE_METHOD(void, ConnectClicked);
-    DECLARE_INSTANCE_METHOD(void, DisconnectClicked);
-
-    // --- on-change handlers that need extra logic beyond "just save" ---
-    DECLARE_INSTANCE_METHOD(void, OnApiKeyChanged);
-    DECLARE_INSTANCE_METHOD(void, OnVideoChanged);
-    DECLARE_INSTANCE_METHOD(void, OnEnabledChanged);
-    DECLARE_INSTANCE_METHOD(void, OnPresetChanged);
-
-    void RefreshFromConfig(const YouTubeLiveChat::ModConfig& cfg);
-    void SetStatus(const std::string& text);
-
-private:
-    YouTubeLiveChat::ModConfig BuildConfigFromFields();
-    void SaveAndApply();
-)
+    // Mutates a copy of the shared config, persists it, and pushes it out.
+    void Edit(std::function<void(YouTubeLiveChat::ModConfig&)> const& mutate);
+};

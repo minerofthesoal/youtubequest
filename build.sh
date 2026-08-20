@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build script for YouTube Live Chat (Beat Saber Quest mod)
-# Requires: qpm-rust, CMake >= 3.22, Ninja, Android NDK r27 (r27d tested)
+# Requires: qpm, CMake >= 3.22, Ninja, Android NDK r27 (r27d tested)
 set -euo pipefail
 
 : "${ANDROID_NDK_HOME:?Set ANDROID_NDK_HOME to your NDK r27 install first}"
@@ -13,7 +13,6 @@ if [ ! -f extern.cmake ] || [ ! -f qpm_defines.cmake ]; then
     exit 1
 fi
 
-mkdir -p build
 cmake -G "Ninja" \
     -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
     -DANDROID_ABI=arm64-v8a \
@@ -22,6 +21,15 @@ cmake -G "Ninja" \
     -B build .
 
 cmake --build build -j"$(nproc)"
+
+# -fvisibility=hidden makes a missing export attribute produce a .so that
+# loads and then does nothing, so check for the entry points here.
+for sym in setup late_load; do
+    if ! nm -D --defined-only build/libyoutubelivechat.so | awk '{print $3}' | grep -qx "$sym"; then
+        echo "error: $sym is not exported -- Scotland2 will not find it." >&2
+        exit 1
+    fi
+done
 
 echo "Built: build/libyoutubelivechat.so"
 echo "Next: ./createqmod.sh to package it into a .qmod"

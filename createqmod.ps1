@@ -1,6 +1,11 @@
-# Packages the built .so + mod.json into YouTubeLiveChat.qmod (just a zip)
+# Renders mod.template.json into mod.json (filling in the dependency list from
+# what qpm actually resolved) and zips it up with the built .so.
 $ErrorActionPreference = "Stop"
-$out = "YouTubeLiveChat.qmod"
-if (Test-Path $out) { Remove-Item $out }
-Compress-Archive -Path "mod.json","build/libyoutubelivechat.so" -DestinationPath $out
-Write-Host "Wrote $out"
+
+if (-not (Test-Path "build/libyoutubelivechat.so")) {
+    Write-Error "build/libyoutubelivechat.so not found -- run ./build.ps1 first."
+    exit 1
+}
+
+qpm qmod manifest
+qpm qmod zip --skip_build YouTubeLiveChat.qmod

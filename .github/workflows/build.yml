@@ -1,31 +1,24 @@
 name: Build QMOD
 
-# Builds on every push/PR that touches source or build config, and lets you
-# trigger it by hand. Pushing a tag like "v0.1.0" additionally creates a
-# GitHub Release with the built .qmod attached (see the `release` job).
+# Builds on every push/PR that touches source or build config, and can be run
+# by hand from the Actions tab (workflow_dispatch works on any branch, which
+# is how feature branches get verified). Pushing a tag like "v0.2.0"
+# additionally publishes a GitHub Release with the built .qmod attached.
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "claude/**" ]
     tags: [ "v*" ]
-    paths:
-      - "src/**"
-      - "shared/**"
-      - "CMakeLists.txt"
-      - "qpm.json"
-      - "mod.json"
-      - ".github/workflows/build.yml"
   pull_request:
     branches: [ "main" ]
   workflow_dispatch: {}
 
 env:
-  # Keep this in sync with build.ps1/build.sh and README §3-4.
-  # r27 is current NDK LTS (per BSMG wiki's `qpm ndk pin 27`) and is required
-  # here: beatsaber-hook ^6.0.0's headers use C++20 <ranges> and rely on
-  # libc++'s constexpr std::string support, neither of which r25c's bundled
-  # Clang 14.0.7 has -- that combination fails with "'ranges' file not
-  # found" and "constexpr constructor never produces a constant expression"
-  # deep in compilation, not an obviously NDK-related error.
+  # Keep in sync with qpm.json's workspace.ndk and README section 3.
+  # r27 is the current NDK LTS and is required here: beatsaber-hook 6.x
+  # headers use C++20 <ranges> and libc++'s constexpr std::string, neither of
+  # which r25c's bundled Clang 14 has -- that combination fails with "'ranges'
+  # file not found" and "constexpr constructor never produces a constant
+  # expression" deep in compilation, nowhere near an obviously NDK-shaped error.
   NDK_VERSION: r27d
   MOD_OUTPUT_NAME: YouTubeLiveChat
 
@@ -49,50 +42,19 @@ jobs:
       - name: Install QPM (Quest Package Manager)
         run: |
           set -euo pipefail
-          # VERIFY: QuestPackageManager/QPM.CLI's released asset naming can
-          # change between releases -- if this step starts failing, check
-          # https://github.com/QuestPackageManager/QPM.CLI/releases for the
-          # current linux x86_64 asset name and adjust the `grep` pattern.
-          api_url="https://api.github.com/repos/QuestPackageManager/QPM.CLI/releases/latest"
-          asset_url=$(curl -sSL "$api_url" \
-            | grep "browser_download_url" \
-            | grep -i "linux" \
-            | grep -vi "musl\|arm" \
-            | head -n1 \
-            | cut -d '"' -f 4)
-          if [ -z "$asset_url" ]; then
-            echo "::error::Could not find a linux QPM.CLI release asset -- check the releases page and update this step's grep pattern."
-            exit 1
-          fi
-          echo "Downloading $asset_url"
+          # Fetched straight from the release asset rather than through
+          # api.github.com: the API path needs a token to avoid anonymous rate
+          # limiting, and this URL is stable across releases.
           tmpdir=$(mktemp -d)
-          curl -sSL "$asset_url" -o "$tmpdir/qpm-download"
-
-          # The release asset is a .zip (e.g. qpm-linux-x64.zip), not a raw
-          # binary -- unzip it and locate the actual executable inside,
-          # since the archive's internal layout isn't guaranteed to be flat.
-          case "$asset_url" in
-            *.zip)
-              unzip -q "$tmpdir/qpm-download" -d "$tmpdir/extracted"
-              ;;
-            *.tar.gz|*.tgz)
-              mkdir -p "$tmpdir/extracted"
-              tar -xzf "$tmpdir/qpm-download" -C "$tmpdir/extracted"
-              ;;
-            *)
-              # Not archived after all -- treat the download itself as the binary.
-              mkdir -p "$tmpdir/extracted"
-              cp "$tmpdir/qpm-download" "$tmpdir/extracted/qpm"
-              ;;
-          esac
-
+          curl -sSfL -o "$tmpdir/qpm.zip" \
+            "https://github.com/QuestPackageManager/QPM.CLI/releases/latest/download/qpm-linux-x64.zip"
+          unzip -q "$tmpdir/qpm.zip" -d "$tmpdir/extracted"
           qpm_bin=$(find "$tmpdir/extracted" -type f -iname "qpm*" | head -n1)
           if [ -z "$qpm_bin" ]; then
-            echo "::error::Couldn't locate the qpm binary inside the downloaded archive. Contents:"
+            echo "::error::Couldn't find the qpm binary inside the release archive. Contents:"
             find "$tmpdir/extracted" -type f
             exit 1
           fi
-
           chmod +x "$qpm_bin"
           sudo mv "$qpm_bin" /usr/local/bin/qpm
           qpm --version
@@ -100,15 +62,11 @@ jobs:
       - name: Cache QPM dependencies
         uses: actions/cache@v4
         with:
-          # Only cache QPM's own package-download cache (content-addressed,
-          # safe to reuse). Do NOT cache `extern` here: it's restore's
-          # *output*, and letting `restore-keys` fall back to an
-          # older/partial cache entry can hand `qpm restore` a stale
-          # `extern/` it then treats as already-populated, silently
-          # skipping regeneration of extern/extern.cmake. Regenerating
-          # `extern` fresh from this package cache every run is fast and
-          # avoids that failure mode.
-          path: ~/.local/share/QPM
+          # Only QPM's own content-addressed package cache. Do NOT cache
+          # `extern`: that is restore's *output*, and a restore-keys fallback
+          # to a stale entry hands `qpm restore` an extern/ it treats as
+          # already-populated, silently skipping regeneration of extern.cmake.
+          path: ~/.local/share/QPM-RS
           key: ${{ runner.os }}-qpm-${{ hashFiles('qpm.json', 'qpm.shared.json') }}
           restore-keys: |
             ${{ runner.os }}-qpm-
@@ -117,12 +75,11 @@ jobs:
         run: |
           set -euo pipefail
           qpm restore
-          # Belt-and-braces: fail loudly here rather than letting a broken
-          # restore surface later as a confusing "header not found" error
-          # deep in compilation. qpm writes these to the repo root, not
-          # into extern/ -- see CMakeLists.txt for why.
+          # Fail loudly here rather than letting a broken restore surface later
+          # as a confusing "header not found" deep in compilation. qpm writes
+          # these to the repo root, not into extern/ -- see CMakeLists.txt.
           if [ ! -f extern.cmake ] || [ ! -f qpm_defines.cmake ]; then
-            echo "::error::qpm restore did not produce extern.cmake / qpm_defines.cmake -- dependencies were not restored. Check the qpm restore output above."
+            echo "::error::qpm restore did not produce extern.cmake / qpm_defines.cmake. Check the restore output above."
             exit 1
           fi
 
@@ -131,7 +88,6 @@ jobs:
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
           set -euo pipefail
-          mkdir -p build
           cmake -G "Ninja" \
             -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
             -DANDROID_ABI=arm64-v8a \
@@ -139,13 +95,34 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -B build .
           cmake --build build -j"$(nproc)"
+          test -f build/libyoutubelivechat.so
+
+      - name: Verify modloader entry points are exported
+        run: |
+          set -euo pipefail
+          # -fvisibility=hidden means a missing visibility attribute produces a
+          # .so that loads fine and then does nothing at all. Catch that here
+          # instead of on the headset.
+          symbols=$(nm -D --defined-only build/libyoutubelivechat.so | awk '{print $3}')
+          for sym in setup late_load; do
+            if ! echo "$symbols" | grep -qx "$sym"; then
+              echo "::error::$sym is not exported from libyoutubelivechat.so -- Scotland2 will not find it."
+              exit 1
+            fi
+          done
+          echo "setup and late_load are exported."
 
       - name: Package .qmod
         run: |
           set -euo pipefail
-          # CMakeLists.txt's project(youtubelivechat) always produces this
-          # exact .so name -- update both if you ever rename the CMake project.
-          zip -j "${MOD_OUTPUT_NAME}.qmod" mod.json build/libyoutubelivechat.so
+          # `qmod manifest` renders mod.template.json into mod.json, filling in
+          # the dependency list (ids, version ranges and downloadIfMissing
+          # URLs) from what restore actually resolved -- which is why mod.json
+          # is generated rather than hand-maintained: hand-written URLs go
+          # stale silently when an upstream repo moves.
+          qpm qmod manifest
+          cat mod.json
+          qpm qmod zip --skip_build "${MOD_OUTPUT_NAME}.qmod"
           unzip -l "${MOD_OUTPUT_NAME}.qmod"
 
       - name: Upload build artifacts
@@ -154,6 +131,7 @@ jobs:
           name: ${{ env.MOD_OUTPUT_NAME }}-${{ github.sha }}
           path: |
             ${{ env.MOD_OUTPUT_NAME }}.qmod
+            mod.json
             build/*.so
           if-no-files-found: error
           retention-days: 30

@@ -2,29 +2,22 @@
 #include <string>
 #include <vector>
 #include <functional>
-#include <optional>
 
 #include "custom-types/shared/coroutine.hpp"
 #include "ChatTypes.hpp"
+#include "Config.hpp"
+#include "YouTubeAuth.hpp"
 
 // ---------------------------------------------------------------------------
-// Talks to the *official* YouTube Data API v3 over HTTPS, read-only:
-//   GET https://www.googleapis.com/youtube/v3/videos
-//       ?part=snippet,liveStreamingDetails&id=<videoId>&key=<apiKey>
-//   GET https://www.googleapis.com/youtube/v3/liveChat/messages
-//       ?liveChatId=<id>&part=snippet,authorDetails&key=<apiKey>&pageToken=<token>
+// Read-only client for the official YouTube Data API v3:
+//   GET /youtube/v3/videos?part=snippet,liveStreamingDetails&id=<videoId>
+//   GET /youtube/v3/liveBroadcasts?part=snippet&mine=true&broadcastStatus=active
+//   GET /youtube/v3/liveChat/messages?liveChatId=<id>&part=snippet,authorDetails
 //
-// Both endpoints accept a plain API key -- reading public live chat does NOT
-// require OAuth (posting/deleting messages would, but this mod is read-only,
-// so we deliberately don't implement an OAuth flow at all: it would be a
-// large amount of extra attack surface and UX complexity on a device with no
-// easy embedded browser, for zero benefit to "display chat in my headset").
-// See README section "Why no OAuth" for the full reasoning.
-//
-// Networking is done via UnityEngine.Networking.UnityWebRequest (through
-// codegen) rather than bundling a separate HTTP/TLS stack -- the game
-// already links this, it's asynchronous under the hood, and it avoids
-// pulling in libcurl/OpenSSL as new native dependencies just for this.
+// Requests are authorized either with an API key (`key=` query parameter,
+// public chat only) or with an OAuth bearer token (see YouTubeAuth). The
+// liveBroadcasts endpoint is OAuth-only -- `mine=true` has no meaning for an
+// anonymous key.
 // ---------------------------------------------------------------------------
 
 namespace YouTubeLiveChat {
@@ -32,9 +25,12 @@ namespace YouTubeLiveChat {
 struct LiveChatLookupResult {
     bool found = false;
     bool isLive = false;
+    bool authError = false;
+    bool quotaExceeded = false;
     std::string liveChatId;
     std::string channelTitle;
     std::string videoTitle;
+    std::string errorMessage;
 };
 
 struct ChatPollResult {
@@ -42,6 +38,7 @@ struct ChatPollResult {
     long httpStatus = 0;
     bool quotaExceeded = false;
     bool authError = false;
+    bool chatEnded = false;
     std::vector<ChatMessage> messages;
     std::string nextPageToken;
     int64_t pollingIntervalMillis = 5000;
@@ -50,15 +47,16 @@ struct ChatPollResult {
 
 class YouTubeApiClient {
 public:
-    explicit YouTubeApiClient(std::string apiKey) : apiKey_(std::move(apiKey)) {}
+    // auth may be null when running in API-key mode.
+    void Configure(const ModConfig& config, YouTubeAuth* auth);
 
-    void SetApiKey(std::string apiKey) { apiKey_ = std::move(apiKey); }
-
-    // Resolves a video ID to its active live chat ID. Call once when the user
-    // connects; re-call if the stream drops (the chat can go inactive when
-    // the broadcaster ends the stream).
+    // Resolves a video ID to its active live chat ID.
     custom_types::Helpers::Coroutine ResolveLiveChatId(
         std::string videoId,
+        std::function<void(LiveChatLookupResult)> callback);
+
+    // OAuth only: finds the signed-in account's currently active broadcast.
+    custom_types::Helpers::Coroutine ResolveOwnLiveChatId(
         std::function<void(LiveChatLookupResult)> callback);
 
     // Fetches one page of chat messages. Pass the previous response's
@@ -68,12 +66,19 @@ public:
         std::string pageToken,
         std::function<void(ChatPollResult)> callback);
 
-private:
-    std::string apiKey_;
+    bool UsingOAuth() const { return authMode_ == AuthMode::OAuth; }
 
-    custom_types::Helpers::Coroutine SendGet(
-        std::string url,
-        std::function<void(bool success, long httpStatus, std::string body)> callback);
+private:
+    AuthMode authMode_ = AuthMode::ApiKey;
+    std::string apiKey_;
+    YouTubeAuth* auth_ = nullptr;
+
+    // Appends `key=` when in API-key mode; returns the bearer token (possibly
+    // empty) to send in OAuth mode. Refreshes the access token if needed.
+    custom_types::Helpers::Coroutine PrepareRequest(
+        std::function<void(bool ok, std::string bearerToken, std::string error)> callback);
+
+    std::string AuthorizedUrl(const std::string& baseUrl) const;
 };
 
-}
+}  // namespace YouTubeLiveChat
