@@ -129,6 +129,16 @@ the version mismatch on install.
 If a newer `bs-cordl` for your exact build exists, bump the range in
 `qpm.json` and update `packageVersion` in `mod.template.json` to match.
 
+If your headset runs a different 1.40.x build (1.40.8, say), QuestPatcher
+shows a "this mod isn't for your game version" warning on install and lets you
+continue. If you would rather not see it, set `packageVersion` in
+`mod.template.json` to your exact installed version string and rebuild — that
+only changes what the manifest claims, not what the code was compiled against.
+
+The `.qmod` itself contains only `mod.json` and `libyoutubelivechat.so`; the
+four dependencies are fetched by QuestPatcher from the `downloadIfMissing`
+URLs in the generated manifest.
+
 ---
 
 ## 4. Build

@@ -17,7 +17,8 @@
       "build": ["pwsh ./build.ps1"],
       "qmod": ["qpm qmod manifest", "qpm qmod zip --skip_build"]
     },
-    "qmodIncludeDirs": ["build", "extern/libs"],
+    "_comment_qmodIncludeDirs": "Only build/ -- pointing this at extern/libs makes qpm bundle every restored .so it doesn't already resolve to a downloadable qmod, which meant shipping the Scotland2 modloader (libsl2.so) inside this mod's archive. This mod has no native libs of its own; its four dependencies are listed in mod.json with downloadIfMissing URLs and QuestPatcher fetches them.",
+    "qmodIncludeDirs": ["build"],
     "qmodIncludeFiles": [],
     "qmodOutput": "./YouTubeLiveChat.qmod",
     "ndk": "^27.0.0"
