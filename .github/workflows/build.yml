@@ -124,7 +124,30 @@ jobs:
       - name: qpm restore
         run: |
           set -euo pipefail
-          qpm restore
+
+          # Retried, because restore resolves package versions over the network
+          # against qpackages.com on every run and that host returns 502 often
+          # enough to fail builds that have nothing wrong with them.
+          #
+          # The durable fix is committing qpm.shared.json, QPM's lockfile --
+          # with one, restore uses the pinned versions and the cached packages
+          # instead of asking the registry what exists. QPM says as much itself
+          # ("Running in CI and using unlocked resolve, this seems like a bug").
+          # Generating it needs registry access, so it has to be done from a
+          # machine that has it: `qpm restore && git add -f qpm.shared.json`.
+          for attempt in 1 2 3 4 5; do
+            if qpm restore; then
+              break
+            fi
+            if [ "$attempt" = "5" ]; then
+              echo "::error::qpm restore failed 5 times. If the log says 502 from qpackages.com, the package registry is down -- this is not a problem with the code."
+              exit 1
+            fi
+            delay=$((attempt * 15))
+            echo "qpm restore failed (attempt $attempt). Retrying in ${delay}s..."
+            sleep "$delay"
+          done
+
           # Fail loudly here rather than letting a broken restore surface later
           # as a confusing "header not found" deep in compilation. qpm writes
           # these to the repo root, not into extern/ -- see CMakeLists.txt.
