@@ -1,5 +1,6 @@
 #include "UI/SettingsViewController.hpp"
 #include "ModState.hpp"
+#include "UI/ChatOverlayController.hpp"
 #include "Logging.hpp"
 
 #include "bsml/shared/BSML-Lite.hpp"
@@ -82,8 +83,17 @@ void SettingsViewController::Edit(std::function<void(ModConfig&)> const& mutate)
 void SettingsViewController::DidActivate(bool firstActivation, bool addedToHierarchy,
                                          bool screenSystemEnabling) {
     ModState::SettingsPtr() = this;
+    Log().info("Settings DidActivate (firstActivation={})", firstActivation);
     if (firstActivation) {
-        BuildUI();
+        // A managed exception from any one control would otherwise abandon the
+        // rest of the screen and leave it half-built with no explanation --
+        // which is indistinguishable, from the headset, from "the mod is
+        // broken". Log it instead so the cause is in the Scotland2 log.
+        try {
+            BuildUI();
+        } catch (std::exception const& e) {
+            Log().error("Settings UI failed to build: {}", e.what());
+        }
     }
     RefreshFromConfig();
     // Qualified: this controller inherits UnityEngine::Object, whose own
@@ -101,24 +111,32 @@ void SettingsViewController::DidDeactivate(bool removedFromHierarchy, bool scree
 }
 
 void SettingsViewController::BuildUI() {
-    auto* horizontal = BSML::Lite::CreateHorizontalLayoutGroup(get_transform());
-    horizontal->set_spacing(2.0f);
-    horizontal->set_childForceExpandWidth(true);
+    // One scrollable container parented straight to the view controller.
+    //
+    // The previous layout nested three of these inside a HorizontalLayoutGroup
+    // to get columns, and the settings screen came out completely blank: the
+    // horizontal group carries a ContentSizeFitter set to PreferredSize while
+    // also being stretched to its parent, and the scroll views inside report
+    // no preferred height, so the whole row collapsed to zero height and every
+    // control was laid out inside nothing. CreateScrollableSettingsContainer
+    // anchors itself to fill its parent (see BSML's Layout.cpp), so given the
+    // view controller's own full-size RectTransform it just works -- one
+    // column that scrolls, which is what every other Quest mod does.
+    UnityEngine::GameObject* container = BSML::Lite::CreateScrollableSettingsContainer(get_transform());
+    if (!container) {
+        Log().error("Settings: CreateScrollableSettingsContainer returned null");
+        return;
+    }
 
-    // Three scrollable columns: connection/auth, placement, message filters.
-    // Scrollable because this mod has genuinely a lot of knobs and a fixed
-    // column would clip the bottom ones off-screen.
-    auto* left = BSML::Lite::CreateScrollableSettingsContainer(horizontal->get_transform());
-    auto* middle = BSML::Lite::CreateScrollableSettingsContainer(horizontal->get_transform());
-    auto* right = BSML::Lite::CreateScrollableSettingsContainer(horizontal->get_transform());
-
-    BuildConnectionSection(left->get_transform());
-    BuildPlacementSection(middle->get_transform());
-    BuildMessageSection(right->get_transform());
+    UnityEngine::Transform* parent = container->get_transform();
+    BuildConnectionSection(parent);
+    BuildPlacementSection(parent);
+    BuildMessageSection(parent);
+    Log().info("Settings UI built");
 }
 
 void SettingsViewController::BuildConnectionSection(Transform* parent) {
-    BSML::Lite::CreateText(parent, StringW("<b>Connection</b>"), 4.0f);
+    BSML::Lite::CreateText(parent, StringW("<b>Connection</b>"), 4.5f);
 
     statusText_ = BSML::Lite::CreateText(parent, StringW("Disconnected"), 3.0f);
     statusText_->set_enableWordWrapping(true);
@@ -201,7 +219,7 @@ void SettingsViewController::BuildConnectionSection(Transform* parent) {
 }
 
 void SettingsViewController::BuildPlacementSection(Transform* parent) {
-    BSML::Lite::CreateText(parent, StringW("<b>Panel</b>"), 4.0f);
+    BSML::Lite::CreateText(parent, StringW("\n<b>Panel position</b>"), 4.5f);
 
     ModConfig const& cfg = ModState::Config();
 
@@ -213,6 +231,22 @@ void SettingsViewController::BuildPlacementSection(Transform* parent) {
         parent, StringW("Follow my head"), cfg.followHead, [this](bool value) {
             Edit([value](ModConfig& c) { c.followHead = value; });
         });
+
+    BSML::Lite::CreateToggle(
+        parent, StringW("Position with red saber"),
+        ModState::OverlayPtr() && ModState::OverlayPtr()->SaberPlacementActive(),
+        [this](bool value) {
+            if (!ModState::OverlayPtr()) return;
+            ModState::OverlayPtr()->SetSaberPlacement(value);
+        });
+
+    BSML::Lite::CreateText(
+        parent,
+        StringW("<size=80%><color=#909090>Turn on, point where you want the panel, turn off to "
+                "drop it there. In a level it follows the red saber; here in the menu it "
+                "follows your left controller. Pause mid-song for the same button.</color></size>"),
+        3.0f)
+        ->set_enableWordWrapping(true);
 
     BSML::Lite::CreateDropdown(
         parent, StringW("Position preset"), StringW(std::string(PresetToName(cfg.preset))),
@@ -260,7 +294,7 @@ void SettingsViewController::BuildPlacementSection(Transform* parent) {
 }
 
 void SettingsViewController::BuildMessageSection(Transform* parent) {
-    BSML::Lite::CreateText(parent, StringW("<b>Messages</b>"), 4.0f);
+    BSML::Lite::CreateText(parent, StringW("\n<b>Messages</b>"), 4.5f);
 
     ModConfig const& cfg = ModState::Config();
 

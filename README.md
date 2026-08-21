@@ -119,22 +119,33 @@ git commit -m "Lock qpm dependencies"
 
 ### Game version and codegen
 
-`bs-cordl` headers are generated per game build. This mod is built against
-**4030.0.0**, generated from Beat Saber `1.40.3_4614`, which is what
-`qpm restore` resolves today — `mod.template.json`'s `packageVersion` matches
-that. Hooks here are declared with `MAKE_HOOK_MATCH`, which resolves methods
-by name through IL2CPP metadata at runtime rather than by baked-in offsets, so
-a slightly newer game build generally still works; QuestPatcher may warn about
-the version mismatch on install.
+This mod targets **Beat Saber 1.40.8_7379**, via `bs-cordl` `^4008.0.0` and
+`bsml` `^0.4.55` (the BSML release built against that same codegen).
 
-If a newer `bs-cordl` for your exact build exists, bump the range in
-`qpm.json` and update `packageVersion` in `mod.template.json` to match.
+**bs-cordl version numbers are not ordered by game version**, which is worth
+knowing before you touch that range. 1.40.1, 1.40.2 and 1.40.3 were published
+as `4010`, `4020`, `4030`; then 1.40.4 through 1.40.8 as `4004` through
+`4008`. So `4008.0.0` (1.40.8) sorts *below* `4030.0.0` (1.40.3), and a range
+of `*` quietly resolves to the older game — which is exactly what this repo
+was doing.
 
-If your headset runs a different 1.40.x build (1.40.8, say), QuestPatcher
-shows a "this mod isn't for your game version" warning on install and lets you
-continue. If you would rather not see it, set `packageVersion` in
-`mod.template.json` to your exact installed version string and rebuild — that
-only changes what the manifest claims, not what the code was compiled against.
+Three things must move together when you retarget:
+
+| File | Field | For 1.40.8 |
+|---|---|---|
+| `qpm.json` | `bs-cordl` range | `^4008.0.0` |
+| `qpm.json` | `bsml` range | `^0.4.55` |
+| `mod.template.json` | `packageVersion` | `1.40.8_7379` |
+
+BSML pins its own `bs-cordl` range, so a mismatched pair fails to resolve
+rather than building something subtly wrong. The mapping for other builds is
+in the [bs-cordl tags](https://github.com/QuestPackageManager/bs-cordl/tags) —
+each tag's commit message names its game version — and the matching BSML is
+the release whose `qpm.json` pins that same cordl range.
+
+QuestPatcher compares `packageVersion` against the installed game exactly. If
+it still warns on install, the version string it shows you is the one to put
+in `mod.template.json`.
 
 The `.qmod` itself contains only `mod.json` and `libyoutubelivechat.so`; the
 four dependencies are fetched by QuestPatcher from the `downloadIfMissing`
@@ -248,11 +259,21 @@ Everything is in **Mods → YouTube Live Chat**, in three columns:
 Settings persist to
 `/sdcard/ModData/com.beatgames.beatsaber/Configs/YouTubeLiveChat.json`.
 
-**Panel placement.** With *follow my head* on, the panel sits at the chosen
-preset relative to your head and eases into place (a rigid 1:1 head-lock reads
-as "swimmy" in VR and is distracting mid-song). Turn it off and the panel gets
-a grab handle instead: drag it wherever you like and the position is saved a
-couple of seconds after you let go.
+**Panel placement.** Three ways to put the panel where you want it:
+
+- **Point with the red saber.** Press *Move with red saber* on the pause panel
+  (or the *Position with red saber* toggle in settings), point where you want
+  the chat window, and press *Drop it here*. The panel rides the saber tip and
+  turns to face you while you aim. In the menu, where there are no sabers, it
+  follows your left controller instead. Dropping it switches the panel to
+  fixed placement and saves the spot.
+- **Follow my head.** The panel sits at the chosen preset relative to your head
+  and eases into place — a rigid 1:1 head-lock reads as "swimmy" in VR and is
+  distracting mid-song. Presets are directions, not just sideways offsets, so
+  *middle left/right* really do sit beside you rather than out in front.
+  *Distance* is metres from your head; the default is 1.6.
+- **Grab handle.** With *follow my head* off, the panel gets a handle you can
+  drag. The position is saved a couple of seconds after you let go.
 
 **During a level.** The overlay keeps rendering, because it is a
 `DontDestroyOnLoad` BSML `FloatingScreen` rather than a menu view controller.

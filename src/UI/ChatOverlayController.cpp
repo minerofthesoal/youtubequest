@@ -14,12 +14,18 @@
 #include "UnityEngine/Quaternion.hpp"
 #include "UnityEngine/Time.hpp"
 #include "TMPro/TextAlignmentOptions.hpp"
+#include "GlobalNamespace/SaberManager.hpp"
+#include "GlobalNamespace/Saber.hpp"
+#include "GlobalNamespace/SaberType.hpp"
+#include "GlobalNamespace/VRController.hpp"
+#include "UnityEngine/XR/XRNode.hpp"
 
 #include "beatsaber-hook/shared/utils/typedefs.h"
 
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <optional>
 
 using namespace UnityEngine;
 using namespace YouTubeLiveChat;
@@ -36,19 +42,24 @@ uint64_t NowMillis() {
             .count());
 }
 
-// Head-relative offsets (metres at 1 m out) for each preset, scaled by the
-// configured distance in ApplyPlacement. A simple head-relative approximation
-// rather than a true FOV-edge calculation -- a chat panel only needs to sit
-// consistently out of the way, not hug the render frustum exactly.
+// Head-relative *direction* for each preset, scaled by the configured
+// distance. Each is roughly unit length, so `distance` means what it says --
+// metres from your head to the panel.
+//
+// The z component is per-preset rather than always "straight ahead": the side
+// presets used to sit the full distance forward *and* offset sideways, which
+// put the panel out in front of the player in the play space instead of off
+// to the side of it. Middle-left/right are now mostly lateral with just
+// enough forward lean to stay in peripheral vision.
 Vector3 PresetBaseOffset(PanelPreset p) {
     switch (p) {
-        case PanelPreset::TopLeft:     return Vector3(-0.45f, 0.30f, 0.0f);
-        case PanelPreset::TopCenter:   return Vector3(0.0f, 0.38f, 0.0f);
-        case PanelPreset::TopRight:    return Vector3(0.45f, 0.30f, 0.0f);
-        case PanelPreset::MiddleLeft:  return Vector3(-0.60f, 0.0f, 0.0f);
-        case PanelPreset::MiddleRight: return Vector3(0.60f, 0.0f, 0.0f);
-        case PanelPreset::BottomLeft:  return Vector3(-0.45f, -0.32f, 0.0f);
-        case PanelPreset::BottomRight: return Vector3(0.45f, -0.32f, 0.0f);
+        case PanelPreset::TopLeft:     return Vector3(-0.48f, 0.32f, 0.82f);
+        case PanelPreset::TopCenter:   return Vector3(0.0f, 0.40f, 0.92f);
+        case PanelPreset::TopRight:    return Vector3(0.48f, 0.32f, 0.82f);
+        case PanelPreset::MiddleLeft:  return Vector3(-0.88f, 0.0f, 0.48f);
+        case PanelPreset::MiddleRight: return Vector3(0.88f, 0.0f, 0.48f);
+        case PanelPreset::BottomLeft:  return Vector3(-0.48f, -0.34f, 0.82f);
+        case PanelPreset::BottomRight: return Vector3(0.48f, -0.34f, 0.82f);
         case PanelPreset::Custom:
         default:                       return Vector3(0.0f, 0.0f, 0.0f);
     }
@@ -57,6 +68,36 @@ Vector3 PresetBaseOffset(PanelPreset p) {
 float Distance(Vector3 const& a, Vector3 const& b) {
     float dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
     return std::sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+// cordl value types don't get C++ arithmetic operators, so the vector maths
+// here is written out rather than going through Vector3::op_Subtraction.
+Vector3 Subtract(Vector3 const& a, Vector3 const& b) {
+    return Vector3(a.x - b.x, a.y - b.y, a.z - b.z);
+}
+
+// World-space point at the tip of the red saber, or of the left controller
+// when there are no sabers (i.e. anywhere outside a level).
+std::optional<Vector3> RedSaberTip() {
+    auto* saberManager = Object::FindObjectOfType<GlobalNamespace::SaberManager*>();
+    if (saberManager) {
+        // Left saber is SaberA, the red one.
+        auto saber = saberManager->get_leftSaber();
+        if (saber) return saber->get_saberBladeTopPos();
+    }
+
+    auto controllers = Object::FindObjectsOfType<GlobalNamespace::VRController*>();
+    for (auto controller : controllers) {
+        if (!controller) continue;
+        if (controller->get_node().value__ != UnityEngine::XR::XRNode::LeftHand.value__) continue;
+        // No blade to measure from out here, so project a saber's length
+        // forward from the controller to keep the gesture feeling the same.
+        Transform* t = controller->get_transform();
+        Vector3 pos = t->get_position();
+        Vector3 fwd = t->get_forward();
+        return Vector3(pos.x + fwd.x * 0.9f, pos.y + fwd.y * 0.9f, pos.z + fwd.z * 0.9f);
+    }
+    return std::nullopt;
 }
 
 }  // namespace
@@ -228,7 +269,7 @@ void ChatOverlayController::ApplyPlacement(bool immediate) {
     Vector3 localOffset(
         (custom ? config_.customX : base.x * config_.distance) + config_.horizontalOffset,
         (custom ? config_.customY : base.y * config_.distance) + config_.verticalOffset,
-        custom ? config_.customZ : config_.distance);
+        custom ? config_.customZ : base.z * config_.distance);
 
     Vector3 targetPos = head->TransformPoint(localOffset);
     Quaternion targetRot = head->get_rotation();
@@ -296,8 +337,14 @@ void ChatOverlayController::Update() {
         return;
     }
 
-    ApplyPlacement(false);
-    TrackFreePlacement();
+    if (saberPlacement_) {
+        if (!UpdateSaberPlacement()) {
+            SetStatus("No saber or controller found to position with");
+        }
+    } else {
+        ApplyPlacement(false);
+        TrackFreePlacement();
+    }
 
     if (!incoming_.empty()) {
         std::vector<ChatMessage> batch;
@@ -408,6 +455,64 @@ void ChatOverlayController::ExpireOldMessages() {
         changed = true;
     }
     if (changed) RelayoutRows();
+}
+
+void ChatOverlayController::SetSaberPlacement(bool active) {
+    if (saberPlacement_ == active) return;
+    saberPlacement_ = active;
+
+    if (active) {
+        // The handle would fight the saber for control of the same transform.
+        if (screen_) screen_->set_ShowHandle(false);
+        SetStatus("Point the red saber where you want the chat panel");
+        return;
+    }
+
+    // Dropping it here: switch to fixed placement so the panel stays put
+    // instead of springing back to the head-relative preset next frame.
+    CommitCurrentPlacement();
+    SetStatus("Chat panel placed");
+}
+
+void ChatOverlayController::CommitCurrentPlacement() {
+    if (!screen_) return;
+    UnityEngine::Transform* screenTransform = screen_->get_transform();
+    Vector3 pos = screenTransform->get_position();
+    Vector3 euler = screenTransform->get_rotation().get_eulerAngles();
+
+    ModConfig cfg = ModState::Config();
+    cfg.followHead = false;
+    cfg.panelPosX = pos.x;
+    cfg.panelPosY = pos.y;
+    cfg.panelPosZ = pos.z;
+    cfg.panelRotX = euler.x;
+    cfg.panelRotY = euler.y;
+    cfg.panelRotZ = euler.z;
+    ModState::ApplyConfig(cfg);
+
+    lastPlacementPos_ = pos;
+    placementDirty_ = false;
+    placementSaveTimer_ = 0.0f;
+}
+
+bool ChatOverlayController::UpdateSaberPlacement() {
+    if (!screen_) return false;
+
+    auto tip = RedSaberTip();
+    if (!tip) return false;
+
+    UnityEngine::Camera* camera = Camera::get_main();
+    UnityEngine::Transform* screenTransform = screen_->get_transform();
+    screenTransform->set_position(*tip);
+
+    if (camera) {
+        // Face the panel away from the head, so its front is towards you.
+        Vector3 away = Subtract(*tip, camera->get_transform()->get_position());
+        if (Distance(away, Vector3(0.0f, 0.0f, 0.0f)) > 0.01f) {
+            screenTransform->set_rotation(Quaternion::LookRotation(away, Vector3::get_up()));
+        }
+    }
+    return true;
 }
 
 void ChatOverlayController::PushMessages(std::vector<ChatMessage> const& messages) {

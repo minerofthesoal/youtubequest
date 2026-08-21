@@ -34,7 +34,7 @@ Vector3 InLevelPanel::PlacementInFrontOfHead() const {
 void InLevelPanel::Build() {
     if (built_) return;
 
-    screen_ = BSML::Lite::CreateFloatingScreen(Vector2(60.0f, 32.0f),
+    screen_ = BSML::Lite::CreateFloatingScreen(Vector2(64.0f, 46.0f),
                                                Vector3(0.0f, 1.2f, 1.6f),
                                                Vector3(0.0f, 0.0f, 0.0f),
                                                /*curvatureRadius*/ 0.0f,
@@ -54,15 +54,15 @@ void InLevelPanel::Build() {
     Transform* root = screen_->get_transform();
 
     BSML::Lite::CreateText(root, StringW("<b>YouTube Live Chat</b>"), 3.6f,
-                           Vector2(0.0f, 12.0f), Vector2(56.0f, 6.0f))
+                           Vector2(0.0f, 18.0f), Vector2(60.0f, 6.0f))
         ->set_alignment(TMPro::TextAlignmentOptions::Center);
 
     statusText_ = BSML::Lite::CreateText(root, StringW(""), 3.0f,
-                                         Vector2(0.0f, 6.0f), Vector2(56.0f, 6.0f));
+                                         Vector2(0.0f, 11.0f), Vector2(60.0f, 8.0f));
     statusText_->set_alignment(TMPro::TextAlignmentOptions::Center);
     statusText_->set_enableWordWrapping(true);
 
-    BSML::Lite::CreateUIButton(root, StringW("Show / hide"), Vector2(-18.0f, -6.0f),
+    BSML::Lite::CreateUIButton(root, StringW("Show / hide"), Vector2(-13.0f, 1.0f),
                                Vector2(22.0f, 8.0f), []() {
                                    ModConfig cfg = ModState::Config();
                                    cfg.enabled = !cfg.enabled;
@@ -70,22 +70,32 @@ void InLevelPanel::Build() {
                                    Instance().Refresh();
                                });
 
-    BSML::Lite::CreateUIButton(root, StringW("Reconnect"), Vector2(6.0f, -6.0f),
+    BSML::Lite::CreateUIButton(root, StringW("Reconnect"), Vector2(13.0f, 1.0f),
                                Vector2(22.0f, 8.0f), []() {
                                    ModState::Manager().Connect();
                                    Instance().Refresh();
                                });
 
-    BSML::Lite::CreateUIButton(root, StringW("Clear"), Vector2(-18.0f, -15.0f),
+    BSML::Lite::CreateUIButton(root, StringW("Clear"), Vector2(-13.0f, -9.0f),
                                Vector2(22.0f, 8.0f), []() {
                                    if (ModState::OverlayPtr()) ModState::OverlayPtr()->ClearMessages();
                                });
 
-    BSML::Lite::CreateUIButton(root, StringW("Disconnect"), Vector2(6.0f, -15.0f),
+    BSML::Lite::CreateUIButton(root, StringW("Disconnect"), Vector2(13.0f, -9.0f),
                                Vector2(22.0f, 8.0f), []() {
                                    ModState::Manager().Disconnect();
                                    Instance().Refresh();
                                });
+
+    // Placing the panel is the one thing you can only really do in a level,
+    // since that is where the sabers are.
+    saberButton_ = BSML::Lite::CreateUIButton(root, StringW("Move with red saber"),
+                                              Vector2(0.0f, -19.0f), Vector2(50.0f, 8.0f), []() {
+                                                  auto* overlay = ModState::OverlayPtr();
+                                                  if (!overlay) return;
+                                                  overlay->SetSaberPlacement(!overlay->SaberPlacementActive());
+                                                  Instance().Refresh();
+                                              });
 
     built_ = true;
     go->SetActive(false);
@@ -120,6 +130,15 @@ void InLevelPanel::Refresh() {
     std::string line = ToString(manager.State());
     if (!manager.StatusDetail().empty()) line += " - " + manager.StatusDetail();
     if (!ModState::Config().enabled) line += "  (overlay hidden)";
+
+    auto* overlay = ModState::OverlayPtr();
+    const bool placing = overlay && overlay->SaberPlacementActive();
+    if (placing) line = "Point the red saber where you want the panel";
+    if (saberButton_) {
+        BSML::Lite::SetButtonText(saberButton_.ptr(),
+                                  StringW(placing ? "Drop it here" : "Move with red saber"));
+    }
+
     statusText_->set_text(StringW("<color=#B0B0B0>" + line + "</color>"));
 }
 

@@ -7,8 +7,8 @@
   "author": "minerofthesoal",
   "version": "${version}",
   "packageId": "com.beatgames.beatsaber",
-  "_comment_packageVersion": "The Beat Saber build this mod is compiled against, which is whatever bs-cordl resolves to (4030.0.0 == 1.40.3_4614). If your headset runs a different 1.40.x build, QuestPatcher warns on install and lets you continue; the hooks bind by method name, not by offset. Change this and qpm.json's bs-cordl range together.",
-  "packageVersion": "1.40.3_4614",
+  "_comment_packageVersion": "The Beat Saber build this mod is compiled against. Must stay in step with qpm.json's bs-cordl range (4008.0.0 == 1.40.8_7379) and bsml range. QuestPatcher compares this string against the installed game exactly; if it still warns, the version it shows is the one to put here.",
+  "packageVersion": "1.40.8_7379",
   "description": "Pop-out YouTube live chat overlay for Beat Saber, standalone on Quest. Shows chat in the menu and during levels, signs in with your YouTube account (or a plain API key), and needs no PC or companion server.",
   "dependencies": [],
   "modFiles": [
