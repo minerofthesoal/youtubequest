@@ -155,7 +155,7 @@ void ChatOverlayController::Build() {
         /*createHandle*/ true);
 
     if (!screen_) {
-        Log().error("Failed to create the chat FloatingScreen");
+        YouTubeLiveChat::Log().error("Failed to create the chat FloatingScreen");
         return;
     }
 

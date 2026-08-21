@@ -83,7 +83,7 @@ void SettingsViewController::Edit(std::function<void(ModConfig&)> const& mutate)
 void SettingsViewController::DidActivate(bool firstActivation, bool addedToHierarchy,
                                          bool screenSystemEnabling) {
     ModState::SettingsPtr() = this;
-    Log().info("Settings DidActivate (firstActivation={})", firstActivation);
+    YouTubeLiveChat::Log().info("Settings DidActivate (firstActivation={})", firstActivation);
     if (firstActivation) {
         // A managed exception from any one control would otherwise abandon the
         // rest of the screen and leave it half-built with no explanation --
@@ -92,7 +92,7 @@ void SettingsViewController::DidActivate(bool firstActivation, bool addedToHiera
         try {
             BuildUI();
         } catch (std::exception const& e) {
-            Log().error("Settings UI failed to build: {}", e.what());
+            YouTubeLiveChat::Log().error("Settings UI failed to build: {}", e.what());
         }
     }
     RefreshFromConfig();
@@ -124,7 +124,7 @@ void SettingsViewController::BuildUI() {
     // column that scrolls, which is what every other Quest mod does.
     UnityEngine::GameObject* container = BSML::Lite::CreateScrollableSettingsContainer(get_transform());
     if (!container) {
-        Log().error("Settings: CreateScrollableSettingsContainer returned null");
+        YouTubeLiveChat::Log().error("Settings: CreateScrollableSettingsContainer returned null");
         return;
     }
 
@@ -132,7 +132,7 @@ void SettingsViewController::BuildUI() {
     BuildConnectionSection(parent);
     BuildPlacementSection(parent);
     BuildMessageSection(parent);
-    Log().info("Settings UI built");
+    YouTubeLiveChat::Log().info("Settings UI built");
 }
 
 void SettingsViewController::BuildConnectionSection(Transform* parent) {
