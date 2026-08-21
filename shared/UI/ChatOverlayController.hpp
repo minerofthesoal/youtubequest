@@ -4,6 +4,7 @@
 
 #include "UnityEngine/MonoBehaviour.hpp"
 #include "UnityEngine/CanvasGroup.hpp"
+#include "UnityEngine/Transform.hpp"
 #include "UnityEngine/Vector3.hpp"
 #include "UnityEngine/AudioSource.hpp"
 #include "UnityEngine/AudioClip.hpp"
@@ -119,3 +120,19 @@ DECLARE_CLASS_CODEGEN(YouTubeLiveChat::UI, ChatOverlayController, UnityEngine::M
     float ScreenWidthUnits() const;
     float ScreenHeightUnits() const;
 };
+
+namespace YouTubeLiveChat::UI {
+
+// The player's head, resolved once and cached.
+//
+// Deliberately not Camera.main: that only returns a camera which is both
+// tagged "MainCamera" and enabled, and Beat Saber does not reliably tag the VR
+// camera that way in every scene. Anything positioning itself relative to the
+// player should go through here rather than reaching for Camera.main and
+// quietly giving up when it comes back null.
+//
+// Returns nullptr only if no camera at all could be found; callers should say
+// so rather than freezing in place.
+UnityEngine::Transform* HeadTransform();
+
+}  // namespace YouTubeLiveChat::UI

@@ -7,7 +7,6 @@
 
 #include "UnityEngine/GameObject.hpp"
 #include "UnityEngine/Object.hpp"
-#include "UnityEngine/Camera.hpp"
 #include "UnityEngine/Transform.hpp"
 #include "UnityEngine/Vector2.hpp"
 #include "UnityEngine/Quaternion.hpp"
@@ -23,9 +22,8 @@ InLevelPanel& InLevelPanel::Instance() {
 }
 
 Vector3 InLevelPanel::PlacementInFrontOfHead() const {
-    Camera* camera = Camera::get_main();
-    if (!camera) return Vector3(0.0f, 1.2f, 1.6f);
-    Transform* head = camera->get_transform();
+    Transform* head = HeadTransform();
+    if (!head) return Vector3(0.0f, 1.2f, 1.6f);
     // Below eye level and a little closer than the pause menu itself, so it
     // sits under the pause buttons rather than fighting them for space.
     return head->TransformPoint(Vector3(0.0f, -0.45f, 1.4f));
@@ -106,10 +104,10 @@ void InLevelPanel::Show() {
     if (!screen_) return;
 
     Transform* transform = screen_->get_transform();
-    Camera* camera = Camera::get_main();
+    Transform* head = HeadTransform();
     transform->set_position(PlacementInFrontOfHead());
-    if (camera) {
-        Vector3 euler = camera->get_transform()->get_rotation().get_eulerAngles();
+    if (head) {
+        Vector3 euler = head->get_rotation().get_eulerAngles();
         // Match the player's yaw only: inheriting pitch and roll would leave
         // the panel tilted at whatever angle their head happened to be at.
         transform->set_rotation(Quaternion::Euler(20.0f, euler.y, 0.0f));

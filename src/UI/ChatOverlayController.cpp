@@ -14,6 +14,7 @@
 #include "UnityEngine/Quaternion.hpp"
 #include "UnityEngine/Time.hpp"
 #include "TMPro/TextAlignmentOptions.hpp"
+#include "GlobalNamespace/MainCamera.hpp"
 #include "GlobalNamespace/SaberManager.hpp"
 #include "GlobalNamespace/Saber.hpp"
 #include "GlobalNamespace/SaberType.hpp"
@@ -75,6 +76,63 @@ float Distance(Vector3 const& a, Vector3 const& b) {
 Vector3 Subtract(Vector3 const& a, Vector3 const& b) {
     return Vector3(a.x - b.x, a.y - b.y, a.z - b.z);
 }
+
+// The transform of the player's head.
+//
+// Camera.main only ever returns a camera that is BOTH tagged "MainCamera"
+// and enabled, and Beat Saber does not reliably give the VR camera that tag
+// -- the menu and the gameplay scene put it on different objects. When it
+// came back null, ApplyPlacement simply returned, so the panel stayed at the
+// position CreateFloatingScreen gave it (0, 1.6, 2.2) forever: parked two
+// metres straight ahead, ignoring every placement control. Both "the window
+// is too far forward" and "the window will not move" are that one silent
+// early return.
+//
+// So ask the game first -- GlobalNamespace::MainCamera is Beat Saber's own
+// component wrapping the head camera -- then Camera.main, then any enabled
+// camera that renders to the screen rather than to a texture.
+UnityEngine::Transform* ResolveHeadTransform() {
+    auto* bsMainCamera = Object::FindObjectOfType<GlobalNamespace::MainCamera*>();
+    if (bsMainCamera) {
+        UnityEngine::Camera* camera = bsMainCamera->get_camera();
+        if (camera) return camera->get_transform();
+    }
+
+    UnityEngine::Camera* main = Camera::get_main();
+    if (main) return main->get_transform();
+
+    auto cameras = Object::FindObjectsOfType<UnityEngine::Camera*>();
+    for (auto camera : cameras) {
+        if (!camera || !camera->get_enabled()) continue;
+        // Skip render-to-texture cameras (mirrors, the smooth-camera feed):
+        // they are not where the player's eyes are.
+        if (camera->get_targetTexture()) continue;
+        return camera->get_transform();
+    }
+    return nullptr;
+}
+
+}  // namespace
+
+namespace YouTubeLiveChat::UI {
+
+UnityEngine::Transform* HeadTransform() {
+    // Cached: ApplyPlacement runs this every frame from Update, and
+    // FindObjectOfType is a full scene scan -- doing that at 90 Hz mid-song is
+    // exactly the kind of per-frame cost this overlay is supposed to avoid.
+    // SafePtrUnity reports a destroyed object as dead, so a scene change
+    // invalidates the cache on its own and the next call re-resolves.
+    static SafePtrUnity<UnityEngine::Transform> cached;
+    if (cached) return cached.ptr();
+
+    UnityEngine::Transform* head = ResolveHeadTransform();
+    if (head) cached = head;
+    return head;
+}
+
+}  // namespace YouTubeLiveChat::UI
+
+namespace {
 
 // World-space point at the tip of the red saber, or of the left controller
 // when there are no sabers (i.e. anywhere outside a level).
@@ -276,9 +334,13 @@ void ChatOverlayController::ApplyPlacement(bool immediate) {
         return;
     }
 
-    UnityEngine::Camera* camera = Camera::get_main();
-    if (!camera) return;
-    UnityEngine::Transform* head = camera->get_transform();
+    UnityEngine::Transform* head = HeadTransform();
+    if (!head) {
+        // Never fail silently here again: a frozen panel with nothing in the
+        // log is indistinguishable from a broken mod.
+        YouTubeLiveChat::Log().warn("Placement: no camera found, panel left where it is");
+        return;
+    }
 
     Vector3 base = PresetBaseOffset(config_.preset);
     const bool custom = config_.preset == PanelPreset::Custom;
@@ -528,13 +590,13 @@ bool ChatOverlayController::UpdateSaberPlacement() {
     auto tip = RedSaberTip();
     if (!tip) return false;
 
-    UnityEngine::Camera* camera = Camera::get_main();
+    UnityEngine::Transform* head = HeadTransform();
     UnityEngine::Transform* screenTransform = screen_->get_transform();
     screenTransform->set_position(*tip);
 
-    if (camera) {
+    if (head) {
         // Face the panel away from the head, so its front is towards you.
-        Vector3 away = Subtract(*tip, camera->get_transform()->get_position());
+        Vector3 away = Subtract(*tip, head->get_position());
         if (Distance(away, Vector3(0.0f, 0.0f, 0.0f)) > 0.01f) {
             screenTransform->set_rotation(Quaternion::LookRotation(away, Vector3::get_up()));
         }
