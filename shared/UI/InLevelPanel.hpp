@@ -2,6 +2,7 @@
 #include "UnityEngine/Vector3.hpp"
 #include "bsml/shared/BSML/FloatingScreen/FloatingScreen.hpp"
 #include "HMUI/CurvedTextMeshPro.hpp"
+#include "UnityEngine/UI/Button.hpp"
 #include "UnityEngine/Object.hpp"  // SafePtr static_assert needs Object complete
 
 #include "beatsaber-hook/shared/utils/typedefs-wrappers.hpp"
@@ -28,6 +29,7 @@ public:
 private:
     SafePtrUnity<BSML::FloatingScreen> screen_;
     SafePtrUnity<HMUI::CurvedTextMeshPro> statusText_;
+    SafePtrUnity<UnityEngine::UI::Button> saberButton_;
     bool built_ = false;
 
     void Build();

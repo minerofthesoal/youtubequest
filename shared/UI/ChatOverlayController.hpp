@@ -57,6 +57,15 @@ DECLARE_CLASS_CODEGEN(YouTubeLiveChat::UI, ChatOverlayController, UnityEngine::M
 
     void ClearMessages();
 
+    // "Point the red saber where you want the panel."
+    //
+    // While active the panel rides the tip of the left (red) saber and turns
+    // to face you; switching it off drops the panel there and persists that
+    // spot. In the menu, where no sabers exist, it follows the left
+    // controller instead so the option is usable from the settings screen too.
+    void SetSaberPlacement(bool active);
+    bool SaberPlacementActive() const { return saberPlacement_; }
+
    private:
     static constexpr size_t kMaxPoolSize = 30;
     static constexpr float kScreenUnitsPerMeter = 50.0f;
@@ -82,12 +91,17 @@ DECLARE_CLASS_CODEGEN(YouTubeLiveChat::UI, ChatOverlayController, UnityEngine::M
     std::string promptLine_;
 
     bool built_ = false;
+    bool saberPlacement_ = false;
     float placementSaveTimer_ = 0.0f;
     bool placementDirty_ = false;
     UnityEngine::Vector3 lastPlacementPos_{};
 
     void Build();
     void BuildRowPool();
+    // Returns false when neither a saber nor a controller could be found, so
+    // the caller can say so rather than leaving the panel silently frozen.
+    bool UpdateSaberPlacement();
+    void CommitCurrentPlacement();
     void ApplyPlacement(bool immediate);
     void TrackFreePlacement();
     void RelayoutRows();

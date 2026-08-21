@@ -11,6 +11,7 @@
 
 #include <functional>
 #include <string>
+#include <vector>
 
 #include "Config.hpp"
 
@@ -45,11 +46,18 @@ DECLARE_CLASS_CODEGEN(YouTubeLiveChat::UI, SettingsViewController, HMUI::ViewCon
     SafePtrUnity<HMUI::CurvedTextMeshPro> statusText_;
     SafePtrUnity<HMUI::CurvedTextMeshPro> authStatusText_;
     SafePtrUnity<UnityEngine::UI::Button> signInButton_;
+    // One per "Apply & save" row -- the row is repeated at the top and the
+    // bottom of the list so the confirmation is on screen wherever you were
+    // scrolled to when you changed something.
+    std::vector<SafePtrUnity<HMUI::CurvedTextMeshPro>> savedTexts_;
 
     std::string statusLine_;
     std::string promptLine_;
 
     void BuildUI();
+    void BuildApplyRow(UnityEngine::Transform * parent);
+    // Writes the same confirmation into every apply row.
+    void NoteSaved(std::string const& text);
     void BuildConnectionSection(UnityEngine::Transform * parent);
     void BuildPlacementSection(UnityEngine::Transform * parent);
     void BuildMessageSection(UnityEngine::Transform * parent);

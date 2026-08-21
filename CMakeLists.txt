@@ -16,7 +16,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # ---------------------------------------------------------------------------
 
 add_compile_definitions(NDEBUG)
-add_compile_definitions(MOD_ID="youtube-live-chat" VERSION="0.2.0")
+
+# qpm.json is the single source of truth for the mod's id and version: it is
+# what `qpm qmod manifest` renders into mod.json, so reading it here keeps the
+# VERSION baked into the .so from drifting away from the one in the manifest.
+# Bump it with scripts/set-version.sh (or the version input on the Build QMOD
+# workflow), never by editing this line.
+file(READ ${CMAKE_SOURCE_DIR}/qpm.json QPM_JSON_CONTENT)
+string(JSON MOD_ID_VALUE GET "${QPM_JSON_CONTENT}" info id)
+string(JSON MOD_VERSION_VALUE GET "${QPM_JSON_CONTENT}" info version)
+message(STATUS "Building ${MOD_ID_VALUE} version ${MOD_VERSION_VALUE}")
+add_compile_definitions(MOD_ID="${MOD_ID_VALUE}" VERSION="${MOD_VERSION_VALUE}")
 
 # RTTI stays ON (no -fno-rtti): beatsaber-hook, bs-cordl and custom-types all
 # use typeid() internally (the exception-logging macros in il2cpp-utils.hpp,

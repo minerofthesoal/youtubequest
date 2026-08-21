@@ -64,7 +64,10 @@ struct ModConfig {
     float customZ = 2.0f;
     float horizontalOffset = 0.0f;
     float verticalOffset = 0.0f;
-    float distance = 2.0f;
+    // Metres out from your head along the preset's direction. Kept modest by
+    // default: a chat panel parked a couple of metres straight ahead sits in
+    // the middle of the play space and reads as being in the way.
+    float distance = 1.6f;
     float width = 0.9f;
     float height = 1.1f;
     float scale = 1.0f;

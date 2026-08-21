@@ -14,11 +14,18 @@
   },
   "workspace": {
     "scripts": {
-      "build": ["pwsh ./build.ps1"],
-      "qmod": ["qpm qmod manifest", "qpm qmod zip --skip_build"]
+      "build": [
+        "pwsh ./build.ps1"
+      ],
+      "qmod": [
+        "qpm qmod manifest",
+        "qpm qmod zip --skip_build"
+      ]
     },
     "_comment_qmodIncludeDirs": "Only build/. This mod ships no native libraries of its own; its four dependencies are listed in mod.json with downloadIfMissing URLs and QuestPatcher fetches them. scripts/package-qmod.sh builds the archive and checks it against the manifest.",
-    "qmodIncludeDirs": ["build"],
+    "qmodIncludeDirs": [
+      "build"
+    ],
     "qmodIncludeFiles": [],
     "qmodOutput": "./YouTubeLiveChat.qmod",
     "ndk": "^27.0.0"
@@ -38,17 +45,17 @@
     },
     {
       "id": "bs-cordl",
-      "versionRange": "^4030.0.0",
+      "versionRange": "^4008.0.0",
       "additionalData": {
         "private": false,
-        "comment": "Codegen headers. 4030.0.0 is generated from Beat Saber 1.40.3_4614, which is the newest published at time of writing; hooks here resolve methods by name at runtime rather than by fixed offset, so a slightly newer game build still works."
+        "comment": "Codegen headers for Beat Saber 1.40.8_7379. NOTE: bs-cordl version numbers are NOT ordered by game version -- 1.40.1/2/3 were published as 4010/4020/4030, then 1.40.4 through 1.40.8 as 4004 through 4008. So 4008.0.0 (1.40.8) sorts BELOW 4030.0.0 (1.40.3), and a versionRange of '*' resolves to the older game. Pin this deliberately, and keep it in step with bsml below and packageVersion in mod.template.json."
       }
     },
     {
       "id": "bsml",
-      "versionRange": "^0.4.50",
+      "versionRange": "^0.4.55",
       "additionalData": {
-        "comment": "bsq-ports/Quest-BSML. Supplies the settings menu registration, BSML-Lite control factories and FloatingScreen used by the overlay."
+        "comment": "bsq-ports/Quest-BSML. Supplies the settings menu registration, BSML-Lite control factories and FloatingScreen used by the overlay. 0.4.55 is the release built against bs-cordl 4008 (1.40.8); 0.5.x moves to 1.41+, so the caret range must not cross into it."
       }
     },
     {

@@ -1,5 +1,6 @@
 #include "UI/SettingsViewController.hpp"
 #include "ModState.hpp"
+#include "UI/ChatOverlayController.hpp"
 #include "Logging.hpp"
 
 #include "bsml/shared/BSML-Lite.hpp"
@@ -8,6 +9,7 @@
 #include "UnityEngine/Transform.hpp"
 #include "UnityEngine/RectTransform.hpp"
 #include "UnityEngine/Vector2.hpp"
+#include "UnityEngine/UI/LayoutElement.hpp"
 #include "TMPro/TextAlignmentOptions.hpp"
 
 #include <array>
@@ -71,19 +73,99 @@ std::string ToStd(StringW s) {
     return static_cast<std::string>(s);
 }
 
+// Every label on this screen goes through here, because a bare
+// BSML::Lite::CreateText does not lay out inside a scrollable settings
+// container.
+//
+// The container BSML hands back is ScrollViewTag's "BSMLScrollViewContentContainer",
+// whose VerticalLayoutGroup runs with childControlHeight = false. That means it
+// only *positions* its children and takes each one's height from the
+// RectTransform as-is -- it never measures the text. CreateText leaves that
+// rect at sizeDelta {0, 0}, i.e. zero height, so every label was allocated no
+// row at all: they piled onto the same spot and the text spilled outside the
+// panel, which is what made these settings look cut off. BSML's own widgets
+// (toggles, sliders, string settings) are prefab clones that come with a real
+// height, which is why they were the only part that looked right.
+//
+// So: give the rect an explicit height, and keep the LayoutElement's reported
+// preferred size in agreement with it. Width needs no help -- the same layout
+// group does control width, and stretches children to the panel -- but the
+// preferred width is set as well so the text still wraps sensibly if a future
+// BSML changes childForceExpandWidth.
+HMUI::CurvedTextMeshPro* AddLabel(UnityEngine::Transform* parent, std::string const& text,
+                                  float fontSize, float lines) {
+    auto* label = BSML::Lite::CreateText(parent, StringW(text), fontSize);
+    label->set_enableWordWrapping(true);
+    label->set_richText(true);
+    label->set_alignment(TMPro::TextAlignmentOptions::Left);
+
+    const float height = fontSize * 1.25f * lines;
+
+    UnityEngine::RectTransform* rect = label->get_rectTransform();
+    rect->set_sizeDelta(UnityEngine::Vector2(0.0f, height));
+
+    // CreateText already adds a LayoutElement; reuse it rather than stacking a
+    // second one on the same object, since LayoutUtility would then have to
+    // reconcile two sources of preferred size.
+    UnityEngine::UI::LayoutElement* layout = label->GetComponent<UnityEngine::UI::LayoutElement*>();
+    if (!layout) layout = label->get_gameObject()->AddComponent<UnityEngine::UI::LayoutElement*>();
+    layout->set_preferredWidth(88.0f);
+    layout->set_preferredHeight(height);
+    return label;
+}
+
 }  // namespace
 
 void SettingsViewController::Edit(std::function<void(ModConfig&)> const& mutate) {
     ModConfig cfg = ModState::Config();
     mutate(cfg);
+    // ApplyConfig writes the file and pushes the new values to the manager
+    // and the overlay, so there is nothing left to "apply" afterwards. That
+    // was invisible from the headset, though -- nothing on screen said the
+    // change had stuck -- so say so.
     ModState::ApplyConfig(cfg);
+    NoteSaved("<color=#5BE07E>Saved.</color>");
+}
+
+void SettingsViewController::NoteSaved(std::string const& text) {
+    for (auto& label : savedTexts_) {
+        if (label) label->set_text(StringW(text));
+    }
+}
+
+// BSML's mod-settings screen has its own OK/Cancel buttons along the bottom,
+// but it greys them out unless a menu opts in with enableExtraButtons. We
+// deliberately leave that off: ModSettingsFlowCoordinator::Ok() emits the
+// "apply" event and then calls RestartGame(nullptr), so enabling those
+// buttons would make "OK" restart Beat Saber. This row is the apply
+// affordance instead -- it saves in place and stays in the menu.
+void SettingsViewController::BuildApplyRow(Transform* parent) {
+    BSML::Lite::CreateUIButton(parent, StringW("Apply & save"), [this]() {
+        // Re-persists and re-pushes the current values. Everything is
+        // already live by this point, so this is a no-op in effect -- its
+        // job is to give the change a visible, deliberate confirmation.
+        ModState::ApplyConfig(ModState::Config());
+        RefreshFromConfig();
+        NoteSaved("<color=#5BE07E>Settings saved.</color>");
+    });
+    savedTexts_.push_back(AddLabel(
+        parent, "<color=#909090>Changes save as soon as you make them.</color>", 2.7f, 2.0f));
 }
 
 void SettingsViewController::DidActivate(bool firstActivation, bool addedToHierarchy,
                                          bool screenSystemEnabling) {
     ModState::SettingsPtr() = this;
+    YouTubeLiveChat::Log().info("Settings DidActivate (firstActivation={})", firstActivation);
     if (firstActivation) {
-        BuildUI();
+        // A managed exception from any one control would otherwise abandon the
+        // rest of the screen and leave it half-built with no explanation --
+        // which is indistinguishable, from the headset, from "the mod is
+        // broken". Log it instead so the cause is in the Scotland2 log.
+        try {
+            BuildUI();
+        } catch (std::exception const& e) {
+            YouTubeLiveChat::Log().error("Settings UI failed to build: {}", e.what());
+        }
     }
     RefreshFromConfig();
     // Qualified: this controller inherits UnityEngine::Object, whose own
@@ -101,27 +183,37 @@ void SettingsViewController::DidDeactivate(bool removedFromHierarchy, bool scree
 }
 
 void SettingsViewController::BuildUI() {
-    auto* horizontal = BSML::Lite::CreateHorizontalLayoutGroup(get_transform());
-    horizontal->set_spacing(2.0f);
-    horizontal->set_childForceExpandWidth(true);
+    // One scrollable container parented straight to the view controller.
+    //
+    // The previous layout nested three of these inside a HorizontalLayoutGroup
+    // to get columns, and the settings screen came out completely blank: the
+    // horizontal group carries a ContentSizeFitter set to PreferredSize while
+    // also being stretched to its parent, and the scroll views inside report
+    // no preferred height, so the whole row collapsed to zero height and every
+    // control was laid out inside nothing. CreateScrollableSettingsContainer
+    // anchors itself to fill its parent (see BSML's Layout.cpp), so given the
+    // view controller's own full-size RectTransform it just works -- one
+    // column that scrolls, which is what every other Quest mod does.
+    UnityEngine::GameObject* container = BSML::Lite::CreateScrollableSettingsContainer(get_transform());
+    if (!container) {
+        YouTubeLiveChat::Log().error("Settings: CreateScrollableSettingsContainer returned null");
+        return;
+    }
 
-    // Three scrollable columns: connection/auth, placement, message filters.
-    // Scrollable because this mod has genuinely a lot of knobs and a fixed
-    // column would clip the bottom ones off-screen.
-    auto* left = BSML::Lite::CreateScrollableSettingsContainer(horizontal->get_transform());
-    auto* middle = BSML::Lite::CreateScrollableSettingsContainer(horizontal->get_transform());
-    auto* right = BSML::Lite::CreateScrollableSettingsContainer(horizontal->get_transform());
-
-    BuildConnectionSection(left->get_transform());
-    BuildPlacementSection(middle->get_transform());
-    BuildMessageSection(right->get_transform());
+    UnityEngine::Transform* parent = container->get_transform();
+    savedTexts_.clear();
+    BuildApplyRow(parent);
+    BuildConnectionSection(parent);
+    BuildPlacementSection(parent);
+    BuildMessageSection(parent);
+    BuildApplyRow(parent);
+    YouTubeLiveChat::Log().info("Settings UI built");
 }
 
 void SettingsViewController::BuildConnectionSection(Transform* parent) {
-    BSML::Lite::CreateText(parent, StringW("<b>Connection</b>"), 4.0f);
+    AddLabel(parent, "<b>Connection</b>", 4.5f, 1.4f);
 
-    statusText_ = BSML::Lite::CreateText(parent, StringW("Disconnected"), 3.0f);
-    statusText_->set_enableWordWrapping(true);
+    statusText_ = AddLabel(parent, "Disconnected", 3.0f, 2.0f);
 
     ModConfig const& cfg = ModState::Config();
 
@@ -158,8 +250,7 @@ void SettingsViewController::BuildConnectionSection(Transform* parent) {
             RefreshAuthStatus();
         });
 
-    authStatusText_ = BSML::Lite::CreateText(parent, StringW(""), 3.0f);
-    authStatusText_->set_enableWordWrapping(true);
+    authStatusText_ = AddLabel(parent, "", 3.0f, 3.0f);
 
     signInButton_ = BSML::Lite::CreateUIButton(parent, StringW("Sign in with YouTube"), [this]() {
         ModState::Manager().BeginSignIn();
@@ -201,7 +292,7 @@ void SettingsViewController::BuildConnectionSection(Transform* parent) {
 }
 
 void SettingsViewController::BuildPlacementSection(Transform* parent) {
-    BSML::Lite::CreateText(parent, StringW("<b>Panel</b>"), 4.0f);
+    AddLabel(parent, "<b>Panel position</b>", 4.5f, 1.8f);
 
     ModConfig const& cfg = ModState::Config();
 
@@ -213,6 +304,19 @@ void SettingsViewController::BuildPlacementSection(Transform* parent) {
         parent, StringW("Follow my head"), cfg.followHead, [this](bool value) {
             Edit([value](ModConfig& c) { c.followHead = value; });
         });
+
+    BSML::Lite::CreateToggle(
+        parent, StringW("Position with red saber"),
+        ModState::OverlayPtr() && ModState::OverlayPtr()->SaberPlacementActive(),
+        [this](bool value) {
+            if (!ModState::OverlayPtr()) return;
+            ModState::OverlayPtr()->SetSaberPlacement(value);
+        });
+
+    AddLabel(parent,
+             "<color=#909090>Point where you want it, then turn this off to drop it there. "
+             "In the menu it follows your left controller.</color>",
+             2.7f, 3.0f);
 
     BSML::Lite::CreateDropdown(
         parent, StringW("Position preset"), StringW(std::string(PresetToName(cfg.preset))),
@@ -260,7 +364,7 @@ void SettingsViewController::BuildPlacementSection(Transform* parent) {
 }
 
 void SettingsViewController::BuildMessageSection(Transform* parent) {
-    BSML::Lite::CreateText(parent, StringW("<b>Messages</b>"), 4.0f);
+    AddLabel(parent, "<b>Messages</b>", 4.5f, 1.8f);
 
     ModConfig const& cfg = ModState::Config();
 

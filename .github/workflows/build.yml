@@ -1,16 +1,30 @@
 name: Build QMOD
 
-# Builds on every push/PR that touches source or build config, and can be run
-# by hand from the Actions tab (workflow_dispatch works on any branch, which
-# is how feature branches get verified). Pushing a tag like "v0.2.0"
-# additionally publishes a GitHub Release with the built .qmod attached.
+# Builds on every push to main or a claude/** branch, on PRs to main, and on
+# manual dispatch. To cut a release, run this workflow from the Actions tab and
+# fill in the "version" box -- that version is written into qpm.json (which
+# CMake and the qmod manifest both read), and the finished .qmod is published
+# as a GitHub Release tagged v<version>. Leave the box empty to just build.
+#
+# Pushing a tag like v0.3.0 does the same thing, taking the version from the
+# tag name.
 on:
   push:
     branches: [ "main", "claude/**" ]
     tags: [ "v*" ]
   pull_request:
     branches: [ "main" ]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, e.g. 0.3.0. Leave empty to build without releasing."
+        required: false
+        type: string
+      prerelease:
+        description: "Mark the release as a pre-release"
+        required: false
+        default: false
+        type: boolean
 
 env:
   # Keep in sync with qpm.json's workspace.ndk and README section 3.
@@ -25,9 +39,45 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release: ${{ steps.version.outputs.release }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+
+          # Precedence: the dispatch input, then a v* tag, then whatever
+          # qpm.json already says (an ordinary CI build, which releases nothing).
+          version=""
+          release="false"
+
+          if [ -n "${INPUT_VERSION:-}" ]; then
+            version="$INPUT_VERSION"
+            release="true"
+            echo "Releasing version $version (from the workflow input)"
+          elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            version="${GITHUB_REF#refs/tags/v}"
+            release="true"
+            echo "Releasing version $version (from the tag ${GITHUB_REF})"
+          fi
+
+          # Written before `qpm restore`, because restore bakes the version
+          # into qpm.shared.json and the manifest is rendered from there.
+          if [ -n "$version" ]; then
+            ./scripts/set-version.sh "$version"
+          fi
+
+          resolved=$(python3 -c "import json; print(json.load(open('qpm.json'))['info']['version'])")
+          echo "Building version $resolved (release=$release)"
+          echo "version=$resolved" >> "$GITHUB_OUTPUT"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
 
       - name: Setup NDK
         id: setup-ndk
@@ -118,7 +168,7 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.MOD_OUTPUT_NAME }}-${{ github.sha }}
+          name: ${{ env.MOD_OUTPUT_NAME }}-${{ steps.version.outputs.version }}-${{ github.sha }}
           path: |
             ${{ env.MOD_OUTPUT_NAME }}.qmod
             mod.json
@@ -128,7 +178,7 @@ jobs:
 
   release:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: needs.build.outputs.release == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -136,11 +186,18 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: ${{ env.MOD_OUTPUT_NAME }}-${{ github.sha }}
+          name: ${{ env.MOD_OUTPUT_NAME }}-${{ needs.build.outputs.version }}-${{ github.sha }}
           path: dist
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/${{ env.MOD_OUTPUT_NAME }}.qmod
+          # Creates the tag at this commit if it doesn't exist yet, which is
+          # what makes the "type a version in the Actions tab" flow work
+          # without having to tag by hand first.
+          tag_name: v${{ needs.build.outputs.version }}
+          name: v${{ needs.build.outputs.version }}
+          prerelease: ${{ inputs.prerelease == true }}
           generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: dist/${{ env.MOD_OUTPUT_NAME }}.qmod
