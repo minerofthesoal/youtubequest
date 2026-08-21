@@ -68,7 +68,12 @@ DECLARE_CLASS_CODEGEN(YouTubeLiveChat::UI, ChatOverlayController, UnityEngine::M
 
    private:
     static constexpr size_t kMaxPoolSize = 30;
-    static constexpr float kScreenUnitsPerMeter = 50.0f;
+    // A BSML FloatingScreen's RectTransform is measured in "screen units" and
+    // the object is meant to sit at localScale 0.02, which makes one screen
+    // unit 1/50 m -- hence kScreenUnitsPerMeter below. Anything that touches
+    // the screen's localScale has to keep this factor in it.
+    static constexpr float kFloatingScreenScale = 0.02f;
+    static constexpr float kScreenUnitsPerMeter = 1.0f / kFloatingScreenScale;
     static constexpr float kRowHeight = 9.0f;
     static constexpr float kHeaderHeight = 13.0f;
 

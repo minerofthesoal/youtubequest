@@ -5,6 +5,7 @@
 #include "HMUI/ViewController.hpp"
 #include "HMUI/CurvedTextMeshPro.hpp"
 #include "UnityEngine/UI/Button.hpp"
+#include "bsml/shared/BSML/Components/Settings/ToggleSetting.hpp"
 #include "UnityEngine/Object.hpp"  // SafePtr static_assert needs Object complete
 
 #include "beatsaber-hook/shared/utils/typedefs-wrappers.hpp"
@@ -46,6 +47,8 @@ DECLARE_CLASS_CODEGEN(YouTubeLiveChat::UI, SettingsViewController, HMUI::ViewCon
     SafePtrUnity<HMUI::CurvedTextMeshPro> statusText_;
     SafePtrUnity<HMUI::CurvedTextMeshPro> authStatusText_;
     SafePtrUnity<UnityEngine::UI::Button> signInButton_;
+    // Needed so EnsureFollowHead can show the toggle flipping back on.
+    SafePtrUnity<BSML::ToggleSetting> followHeadToggle_;
     // One per "Apply & save" row -- the row is repeated at the top and the
     // bottom of the list so the confirmation is on screen wherever you were
     // scrolled to when you changed something.
@@ -62,6 +65,12 @@ DECLARE_CLASS_CODEGEN(YouTubeLiveChat::UI, SettingsViewController, HMUI::ViewCon
     void BuildPlacementSection(UnityEngine::Transform * parent);
     void BuildMessageSection(UnityEngine::Transform * parent);
     void RefreshAuthStatus();
+    // The preset and the distance/offset sliders only mean anything while
+    // the panel is head-relative. Once it has been dropped somewhere with
+    // the saber or the grab handle, followHead is off and those controls
+    // move nothing -- so touching one turns head-following back on rather
+    // than silently doing nothing.
+    void EnsureFollowHead(ModConfig & cfg);
 
     // Mutates a copy of the shared config, persists it, and pushes it out.
     void Edit(std::function<void(YouTubeLiveChat::ModConfig&)> const& mutate);

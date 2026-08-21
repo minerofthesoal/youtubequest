@@ -10,6 +10,7 @@
 #include "UnityEngine/RectTransform.hpp"
 #include "UnityEngine/Vector2.hpp"
 #include "UnityEngine/UI/LayoutElement.hpp"
+#include "UnityEngine/UI/Toggle.hpp"
 #include "TMPro/TextAlignmentOptions.hpp"
 
 #include <array>
@@ -125,6 +126,18 @@ void SettingsViewController::Edit(std::function<void(ModConfig&)> const& mutate)
     // change had stuck -- so say so.
     ModState::ApplyConfig(cfg);
     NoteSaved("<color=#5BE07E>Saved.</color>");
+}
+
+void SettingsViewController::EnsureFollowHead(ModConfig& cfg) {
+    if (cfg.followHead) return;
+    cfg.followHead = true;
+    // SetIsOnWithoutNotify rather than set_Value: BSML-Lite replaces the
+    // toggle's onValueChanged with our lambda, so set_Value would re-enter
+    // Edit() from inside the slider's own Edit().
+    if (followHeadToggle_) {
+        followHeadToggle_->currentValue = true;
+        if (followHeadToggle_->toggle) followHeadToggle_->toggle->SetIsOnWithoutNotify(true);
+    }
 }
 
 void SettingsViewController::NoteSaved(std::string const& text) {
@@ -300,7 +313,7 @@ void SettingsViewController::BuildPlacementSection(Transform* parent) {
         Edit([value](ModConfig& c) { c.enabled = value; });
     });
 
-    BSML::Lite::CreateToggle(
+    followHeadToggle_ = BSML::Lite::CreateToggle(
         parent, StringW("Follow my head"), cfg.followHead, [this](bool value) {
             Edit([value](ModConfig& c) { c.followHead = value; });
         });
@@ -315,15 +328,17 @@ void SettingsViewController::BuildPlacementSection(Transform* parent) {
 
     AddLabel(parent,
              "<color=#909090>Point where you want it, then turn this off to drop it there. "
-             "In the menu it follows your left controller.</color>",
-             2.7f, 3.0f);
+             "In the menu it follows your left controller. Changing a preset or offset below "
+             "puts the panel back on head-following.</color>",
+             2.7f, 4.0f);
 
     BSML::Lite::CreateDropdown(
         parent, StringW("Position preset"), StringW(std::string(PresetToName(cfg.preset))),
         std::span<std::string_view>(kPresetNames),
         [this](StringW value) {
             std::string picked = ToStd(value);
-            Edit([&picked](ModConfig& c) {
+            Edit([this, &picked](ModConfig& c) {
+                EnsureFollowHead(c);
                 for (size_t i = 0; i < kPresetNames.size(); i++) {
                     if (picked == std::string(kPresetNames[i])) {
                         c.preset = IndexToPreset(i);
@@ -335,15 +350,24 @@ void SettingsViewController::BuildPlacementSection(Transform* parent) {
 
     BSML::Lite::CreateSliderSetting(parent, StringW("Distance"), 0.1f, cfg.distance, 0.5f, 4.0f,
                                     [this](float value) {
-                                        Edit([value](ModConfig& c) { c.distance = value; });
+                                        Edit([this, value](ModConfig& c) {
+                                            EnsureFollowHead(c);
+                                            c.distance = value;
+                                        });
                                     });
     BSML::Lite::CreateSliderSetting(parent, StringW("Horizontal offset"), 0.05f, cfg.horizontalOffset,
                                     -2.0f, 2.0f, [this](float value) {
-                                        Edit([value](ModConfig& c) { c.horizontalOffset = value; });
+                                        Edit([this, value](ModConfig& c) {
+                                            EnsureFollowHead(c);
+                                            c.horizontalOffset = value;
+                                        });
                                     });
     BSML::Lite::CreateSliderSetting(parent, StringW("Vertical offset"), 0.05f, cfg.verticalOffset,
                                     -2.0f, 2.0f, [this](float value) {
-                                        Edit([value](ModConfig& c) { c.verticalOffset = value; });
+                                        Edit([this, value](ModConfig& c) {
+                                            EnsureFollowHead(c);
+                                            c.verticalOffset = value;
+                                        });
                                     });
     BSML::Lite::CreateSliderSetting(parent, StringW("Width"), 0.05f, cfg.width, 0.3f, 2.5f,
                                     [this](float value) {

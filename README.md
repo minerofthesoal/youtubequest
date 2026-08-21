@@ -278,6 +278,10 @@ Settings persist to
   turns to face you while you aim. In the menu, where there are no sabers, it
   follows your left controller instead. Dropping it switches the panel to
   fixed placement and saves the spot.
+
+  Because that turns *follow my head* off, the preset and the distance/offset
+  sliders stop applying — they are head-relative by definition. Touching any of
+  them turns head-following back on rather than appearing to do nothing.
 - **Follow my head.** The panel sits at the chosen preset relative to your head
   and eases into place — a rigid 1:1 head-lock reads as "swimmy" in VR and is
   distracting mid-song. Presets are directions, not just sideways offsets, so

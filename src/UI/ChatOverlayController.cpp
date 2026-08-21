@@ -204,8 +204,17 @@ void ChatOverlayController::ApplyConfig(ModConfig const& cfg) {
     if (!built_ || !screen_) return;
 
     screen_->set_ScreenSize(Vector2(ScreenWidthUnits(), ScreenHeightUnits()));
-    screen_->get_transform()->set_localScale(
-        Vector3(cfg.scale, cfg.scale, cfg.scale));
+
+    // cfg.scale is a multiplier the player sets, NOT the transform scale.
+    // BSML creates a FloatingScreen at localScale 0.02 because its
+    // RectTransform is sized in 1/50 m screen units; assigning cfg.scale
+    // straight into localScale (as this used to) replaced 0.02 with 1.0 and
+    // made the panel fifty times too big -- a ~45 x 55 m wall centred a metre
+    // or two in front of the player, i.e. one they are standing inside. That
+    // is why moving the panel appeared to do nothing at all: the sliders were
+    // working, but shifting the centre of a 45 m panel by 30 cm is invisible.
+    const float scale = kFloatingScreenScale * std::clamp(cfg.scale, 0.1f, 4.0f);
+    screen_->get_transform()->set_localScale(Vector3(scale, scale, scale));
 
     // The grab handle only makes sense in free-placement mode -- while the
     // panel is head-following, dragging it would just snap back next frame.
