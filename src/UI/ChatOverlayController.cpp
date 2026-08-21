@@ -255,7 +255,13 @@ void ChatOverlayController::ApplyPlacement(bool immediate) {
     UnityEngine::Transform* screenTransform = screen_->get_transform();
 
     if (!config_.followHead) {
-        if (immediate) {
+        // placementDirty_ means the panel has been moved (dragged by its
+        // handle) more recently than TrackFreePlacement has saved it. Re-seeding
+        // from the stored position in that window would undo the move: ApplyConfig
+        // calls this on *every* settings change, so tweaking opacity within the
+        // two-second save debounce used to yank a panel you had just dragged
+        // straight back to where it started.
+        if (immediate && !placementDirty_) {
             Vector3 saved(config_.panelPosX, config_.panelPosY, config_.panelPosZ);
             screenTransform->set_position(saved);
             screenTransform->set_rotation(
@@ -263,8 +269,9 @@ void ChatOverlayController::ApplyPlacement(bool immediate) {
             // Seed the drag tracker so the very first frame doesn't look like
             // the user just moved the panel.
             lastPlacementPos_ = saved;
-            placementDirty_ = false;
             placementSaveTimer_ = 0.0f;
+            YouTubeLiveChat::Log().info(
+                "Placement: fixed at ({:.2f}, {:.2f}, {:.2f})", saved.x, saved.y, saved.z);
         }
         return;
     }
@@ -284,6 +291,17 @@ void ChatOverlayController::ApplyPlacement(bool immediate) {
     Quaternion targetRot = head->get_rotation();
 
     if (immediate) {
+        // Logged unconditionally rather than behind debugLogging: this runs
+        // once per settings change, and "the panel did not move" is otherwise
+        // impossible to tell apart from "the panel moved somewhere you cannot
+        // see" without a headset in hand.
+        Vector3 from = screenTransform->get_position();
+        YouTubeLiveChat::Log().info(
+            "Placement: head-relative preset={} distance={:.2f} offset=({:.2f}, {:.2f}) "
+            "moving ({:.2f}, {:.2f}, {:.2f}) -> ({:.2f}, {:.2f}, {:.2f})",
+            YouTubeLiveChat::PanelPresetToString(config_.preset), config_.distance,
+            config_.horizontalOffset,
+            config_.verticalOffset, from.x, from.y, from.z, targetPos.x, targetPos.y, targetPos.z);
         screenTransform->set_position(targetPos);
         screenTransform->set_rotation(targetRot);
         return;
